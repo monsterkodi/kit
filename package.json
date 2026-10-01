@@ -1,0 +1,10 @@
+{
+  "name": "kit",
+  "version": "1.0.0",
+  "description": "A git wrapper: status, add, commit with cleaner output",
+  "type": "module",
+  "private": true,
+  "bin": { "kit": "./kit.mjs" },
+  "scripts": { "test": "NO_COLOR=1 node --test test/" },
+  "engines": { "node": ">=20" }
+}
