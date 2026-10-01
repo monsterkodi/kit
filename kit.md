@@ -215,4 +215,7 @@ strings, so colour/layout changes need no repo and no git call.
    `kit add` unaffected; a file in both committed and unstaged renders in both
    sections; the `misc` default message end to end.
 
+## User feedback after Stage-1 additions
+
+1. the tests run, the new feature works nicely -> well done again!
 
