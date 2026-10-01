@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// kit.mjs — entry point.
+// kit.mjs
 //
 //   kit status              report the working tree; silent when clean
 //   kit add [path…]         stage changes, then show what was staged
