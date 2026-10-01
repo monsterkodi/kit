@@ -1,4 +1,6 @@
-// relativise.test.mjs — cwd-relative path handling.
+// relativise.test.mjs 
+//
+// tests cwd-relative path handling.
 //
 // `git status --porcelain=v2 -z` reports paths relative to the repository
 // root regardless of cwd, so kit rewrites them to match what git's own
