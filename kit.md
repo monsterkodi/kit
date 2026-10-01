@@ -105,3 +105,22 @@ strings, so colour/layout changes need no repo and no git call.
   so `~/s/k/.gitignore` stays empty.
 - Working style for this project: plain discussion, no question-UI popups (user
   preference). Keep decisions in prose.
+
+## User Feedback after implementation stage-1
+
+- code looks good on first glance
+- test run started by user via `npm test` completed with 0 fails and 26 tests passed
+- user appreciates the clean and minimal test run output ;)
+- user did a real-world test in the clean project directory:
+   - `ks`
+   - `ka`
+   - `kc`
+   - `kc hello`
+  all commands above exited silently, which is the intended behaviour
+   - `ka hello`
+  exited with the message: `kit add: fatal: pathspec 'hello' did not match any files`
+  which is also the intended behaviour
+
+
+
+
