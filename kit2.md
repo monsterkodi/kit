@@ -146,3 +146,8 @@ expected local times rather than assuming UTC (`format-local:` renders in local
 time).
 
 Result: `git log -n6` is 35 lines; `kit log 6` is 6.
+
+## User feedback for Stage-2
+
+1. amazing! you nailed it.
+
