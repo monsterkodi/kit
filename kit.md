@@ -120,9 +120,14 @@ strings, so colour/layout changes need no repo and no git call.
    - `ka hello`
   exited with the message: `kit add: fatal: pathspec 'hello' did not match any files`
   which is also the intended behaviour
-- user then modified this file and ran `ks` -> works, with nicely colored status display
-- user then ran `kc initial user feedback for stage-1` -> also works
-
-
-
-
+  - user then modified this file and ran `ks` -> works, with nicely colored status display
+  - `kc initial user feedback for stage-1` -> works
+  - user then modified a comment in one of the test files to see how multiple files are handled:
+  - ks works well on the top level
+  - ks from inside a subdirectory (lib or test) works, but output is identical to the toplevel one. it would be nice if the paths were relative to the pwd, like the original git output does.
+  - `ka integration.test.mjs` inside the test folder -> works as intended: just the test file got staged. 
+  - same path issue (not a surprise, since it goes through the same code path)
+  - `kc comment changed` from the test folder -> also works as intended: top level kit.md wasn't committed
+  - a second `kc` in the test folder -> Copyrightrks (noop), but produced some git output that should be pruned
+  - a final `kc` -> works as intended (comitted with 'misc' as message)
+- user is really happy with the result of stage-1, well done ;)
