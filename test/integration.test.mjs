@@ -15,16 +15,27 @@ import { execFileSync } from 'node:child_process';
 import { status } from '../lib/status.mjs';
 import { add } from '../lib/add.mjs';
 import { commit, messageFor } from '../lib/commit.mjs';
+import { log } from '../lib/log.mjs';
 
 /** Create an empty repo in a temp dir; returns its path. */
 function newRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'kit-test-'));
+  // Identity must come from the environment, not -c flags: this machine has
+  // GIT_AUTHOR_NAME/GIT_AUTHOR_EMAIL exported, and they take precedence over
+  // `git -c user.name=…`. Set both so tests do not depend on ambient config.
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: 'test',
+    GIT_AUTHOR_EMAIL: 't@e.st',
+    GIT_COMMITTER_NAME: 'test',
+    GIT_COMMITTER_EMAIL: 't@e.st',
+  };
   const git = (...args) =>
     execFileSync('git', ['-c', 'user.email=t@e.st', '-c', 'user.name=test', ...args], {
-      cwd: dir, encoding: 'utf8',
+      cwd: dir, encoding: 'utf8', env,
     });
   git('init', '-q');
-  return { dir, git, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, git, env, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 /** Capturing output sink. */
@@ -292,6 +303,7 @@ test('all commands: not a git repository exits 128', () => {
       ['status', (io) => status(io)],
       ['add', (io) => add([], io)],
       ['commit', (io) => commit(['x'], io)],
+      ['log', (io) => log([], io)],
     ];
     for (const [name, invoke] of cases) {
       const io = sink();
@@ -300,4 +312,138 @@ test('all commands: not a git repository exits 128', () => {
       assert.match(io.err.join('\n'), /not a git repository/, `${name} should say why`);
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// --- kit log -------------------------------------------------------------
+
+/** A repo with `n` commits, oldest first, message "commit <i>". */
+function repoWithCommits(n) {
+  const r = newRepo();
+  for (let i = 1; i <= n; i++) {
+    writeFileSync(join(r.dir, `f${i}.txt`), `${i}\n`);
+    r.git('add', '-A');
+    r.git('commit', '-qm', `commit ${i}`);
+  }
+  return r;
+}
+
+test('log: empty history is silent and exits 0', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    const io = sink();
+    const code = withCwd(r.dir, () => log([], io));
+    assert.equal(code, 0);
+    assert.equal(io.text(), '', 'a repo with no commits prints nothing');
+  } finally { r.cleanup(); }
+});
+
+test('log: lists every commit, newest first', () => {
+  const r = repoWithCommits(3);
+  try {
+    const io = sink();
+    withCwd(r.dir, () => log([], io));
+    const lines = io.text().split('\n');
+    assert.equal(lines.length, 3);
+    assert.match(lines[0], /commit 3$/, 'newest first');
+    assert.match(lines[2], /commit 1$/);
+  } finally { r.cleanup(); }
+});
+
+test('log: a bare number limits to that many commits', () => {
+  const r = repoWithCommits(5);
+  try {
+    const io = sink();
+    withCwd(r.dir, () => log(['2'], io));
+    const lines = io.text().split('\n');
+    assert.equal(lines.length, 2, 'a commit count, not a line count');
+    assert.match(lines[0], /commit 5$/);
+    assert.match(lines[1], /commit 4$/);
+  } finally { r.cleanup(); }
+});
+
+test('log: zero is silent', () => {
+  const r = repoWithCommits(3);
+  try {
+    const io = sink();
+    const code = withCwd(r.dir, () => log(['0'], io));
+    assert.equal(code, 0);
+    assert.equal(io.text(), '');
+  } finally { r.cleanup(); }
+});
+
+test('log: shows a short hash and never a full 40-character one', () => {
+  const r = repoWithCommits(1);
+  try {
+    const io = sink();
+    withCwd(r.dir, () => log([], io));
+    const line = io.text();
+    const full = r.git('rev-parse', 'HEAD').trim();
+    assert.ok(line.includes(full.slice(0, 7)), 'the short hash is present');
+    assert.ok(!line.includes(full), 'the full hash is not');
+  } finally { r.cleanup(); }
+});
+
+test('log: shows the author name without the email address', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A');
+    execFileSync('git', ['commit', '-qm', 'authored'], {
+      cwd: r.dir, encoding: 'utf8',
+      env: { ...r.env, GIT_AUTHOR_NAME: 'Thorsten', GIT_COMMITTER_NAME: 'Thorsten', GIT_AUTHOR_EMAIL: 't@e.st' },
+    });
+
+    const io = sink();
+    withCwd(r.dir, () => log([], io));
+    const line = io.text();
+    assert.match(line, /Thorsten/, 'the author name appears');
+    assert.ok(!line.includes('t@e.st'), 'the email address does not');
+  } finally { r.cleanup(); }
+});
+
+test('log: date is the short absolute form without seconds', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A');
+    execFileSync('git', ['commit', '-qm', 'dated'], {
+      cwd: r.dir, encoding: 'utf8',
+      // format-local renders in the machine's timezone, so the fixture
+      // carries an explicit +0000 offset and the assertion derives the
+      // expected local time rather than assuming UTC.
+      env: { ...r.env, GIT_AUTHOR_DATE: '2020-01-02T03:04:05 +0000' },
+    });
+
+    const io = sink();
+    withCwd(r.dir, () => log([], io));
+    const local = new Date('2020-01-02T03:04:05Z');
+    const want = `Jan  ${local.getDate()} ${String(local.getHours()).padStart(2, '0')}:04`;
+    assert.ok(io.text().includes(want), `date should read "${want}", got: ${io.text()}`);
+    assert.ok(!/03:04:\d\d/.test(io.text()), 'seconds are not shown');
+    assert.ok(!/2020/.test(io.text()), 'the year is not shown');
+  } finally { r.cleanup(); }
+});
+
+test('log: a non-numeric argument errors instead of printing everything', () => {
+  const r = repoWithCommits(3);
+  try {
+    const io = sink();
+    const code = withCwd(r.dir, () => log(['foo'], io));
+    assert.equal(code, 1);
+    assert.equal(io.text(), '', 'no history is printed');
+    assert.match(io.err.join('\n'), /not a commit count/);
+  } finally { r.cleanup(); }
+});
+
+test('log: a subject with spaces and colons is preserved', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A');
+    r.git('commit', '-qm', 'fix: handle empty tree and  spaces');
+    const io = sink();
+    withCwd(r.dir, () => log([], io));
+    assert.match(io.text(), /fix: handle empty tree and {2}spaces$/);
+  } finally { r.cleanup(); }
 });
