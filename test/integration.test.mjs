@@ -198,6 +198,30 @@ test('commit: fully clean tree is silent', () => {
   } finally { r.cleanup(); }
 });
 
+test('commit: no-op from a subdirectory is silent, not git prose', () => {
+  // Regression: `git add .` from a subdirectory cannot reach outside it, so
+  // commit has nothing staged and git blames "untracked files present" — even
+  // though the status tree printed a moment earlier already listed them.
+  // Nothing happened, so kit says nothing.
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A'); r.git('commit', '-qm', 'init');
+    // git cannot track an empty directory, so give sub/ a file.
+    mkdirSync(join(r.dir, 'sub'), { recursive: true });
+    writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'k\n');
+    r.git('add', '-A'); r.git('commit', '-qm', 'add sub');
+    // An untracked file at the top level, invisible to `git add .` from sub/.
+    writeFileSync(join(r.dir, 'scratch.tmp'), 'x\n');
+
+    const io = sink();
+    const code = withCwd(join(r.dir, 'sub'), () => commit(['noop'], io));
+    assert.equal(code, 1, 'git still reports nothing to commit');
+    assert.doesNotMatch(io.text(), /nothing added to commit/);
+    assert.doesNotMatch(io.text(), /untracked files present/);
+  } finally { r.cleanup(); }
+});
+
 test('all commands: not a git repository exits 128', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kit-norepo-'));
   try {

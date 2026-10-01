@@ -131,3 +131,24 @@ strings, so colour/layout changes need no repo and no git call.
   - a second `kc` in the test folder -> Copyrightrks (noop), but produced some git output that should be pruned
   - a final `kc` -> works as intended (comitted with 'misc' as message)
 - user is really happy with the result of stage-1, well done ;)
+
+## Stage-1 fixes from user feedback
+
+1. **No-op `kc` from a subdirectory printed git prose.** `git add .` from a
+   subdirectory cannot reach outside it, so commit had nothing staged and git
+   reported `nothing added to commit but untracked files present` — while the
+   status tree printed a moment earlier had already listed those untracked
+   files. Fixed: when nothing reached the index, kit is silent (`stagedCount()`
+   check in `lib/commit.mjs`). The exit code is still git's.
+
+2. **Paths are now relative to the working directory**, like plain
+   `git status`. Root cause: `git status --porcelain=v2 -z` always reports
+   paths relative to the *repository root* and ignores cwd, because `-z` turns
+   off git's own relative-path handling. `-z` is kept (it is what makes
+   filenames with spaces/quotes/newlines safe, and carries a rename's origin
+   path as its own record), so `relativise()` in `lib/git.mjs` rewrites paths
+   using `git rev-parse --show-prefix`. Verified to match `git status --short`
+   from the root, `lib/`, `lib/deep/` and `test/`.
+
+   Side effect: a rename's `← origin` suffix is dropped when paths are
+   relativised, since the origin is no longer a sibling of the destination.
