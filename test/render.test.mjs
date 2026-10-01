@@ -93,6 +93,85 @@ test('renderTracking: in-sync renders empty', () => {
   assert.match(renderTracking({ ahead: 3, behind: 1 }), /↓3 ↑1/);
 });
 
+// --- committed view (kit commit's pre-commit status) ---------------------
+//
+// `kit commit` renders the state it is about to commit. That snapshot is
+// exactly the commit's contents, so the heading says "committed" rather than
+// "staged", and the status letters are lowercased so the meaning survives
+// skipping the heading. Uppercase is kept everywhere else.
+
+/** A tree with entries in all three groups, for the committed-view tests. */
+const mixedTree = () => ({
+  branch: 'main', ahead: 0, behind: 0, detached: false,
+  staged: [{ path: 'lib/add.mjs', code: 'A' }, { path: 'README.md', code: 'M' }],
+  unstaged: [{ path: '../kit.md', code: 'M' }],
+  untracked: [{ path: 'notes.tmp', code: '?' }],
+});
+
+test('renderStatus: committed view renames the staged heading', () => {
+  const out = renderStatus(mixedTree(), { committed: true });
+  assert.match(out, /^├ committed/m, 'staged heading becomes committed');
+  assert.doesNotMatch(out, /^├ staged/m, 'staged heading is gone');
+  assert.match(out, /^├ unstaged/m, 'unstaged is untouched');
+  assert.match(out, /^└ untracked/m, 'untracked is untouched');
+});
+
+test('renderStatus: default view still says staged', () => {
+  const out = renderStatus(mixedTree());
+  assert.match(out, /^├ staged/m);
+  assert.doesNotMatch(out, /committed/);
+});
+
+test('renderStatus: committed view lowercases letters in that section only', () => {
+  const out = renderStatus(mixedTree(), { committed: true });
+  // Inside the committed block: lowercase.
+  assert.match(out, /a lib\/add\.mjs/);
+  assert.match(out, /m README\.md/);
+  // Unstaged keeps uppercase, because there it still means git status.
+  assert.match(out, /M \.\.\/kit\.md/);
+});
+
+test('renderStatus: deletion letter is lowercased in the committed view', () => {
+  const d = {
+    branch: 'main', staged: [{ path: 'old.sh', code: 'D' }],
+    unstaged: [], untracked: [],
+  };
+  assert.match(renderStatus(d, { committed: true }), /d old\.sh/);
+});
+
+test('renderStatus: committed view keeps untracked question mark', () => {
+  const out = renderStatus(mixedTree(), { committed: true });
+  assert.match(out, /\? notes\.tmp/, 'the ? marker is unchanged');
+});
+
+test('renderStatus: a file in both committed and unstaged renders in both', () => {
+  // Not a bug: a file staged, then modified again, is in the commit *and*
+  // still has loose changes in the tree.
+  const d = {
+    branch: 'main',
+    staged: [{ path: 'a.mjs', code: 'M' }],
+    unstaged: [{ path: 'a.mjs', code: 'M' }],
+    untracked: [],
+  };
+  const out = renderStatus(d, { committed: true });
+  assert.match(out, /m a\.mjs/, 'lowercase under committed');
+  assert.match(out, /M a\.mjs/, 'uppercase under unstaged');
+  assert.equal(out.match(/a\.mjs/g).length, 2, 'listed exactly twice');
+});
+
+test('renderStatus: committed view on a clean tree still renders nothing', () => {
+  const d = { branch: 'main', staged: [], unstaged: [], untracked: [] };
+  assert.equal(renderStatus(d, { committed: true }), '');
+});
+
+test('renderStatus: committed heading keeps the heading column aligned', () => {
+  // "committed" and "untracked" are both 9 characters, so padding is unaffected.
+  const out = renderStatus(mixedTree(), { committed: true });
+  const heads = out.split('\n').filter((l) => /^[├└] /.test(l));
+  assert.equal(heads.length, 3);
+  assert.equal(new Set(heads.map((l) => l.length)).size, 1, 'all three headings same width');
+});
+
 test('renderCommitSuccess: keeps branch, hash, subject and stat; drops noise', () => {
   const out = renderCommitSuccess(
     [

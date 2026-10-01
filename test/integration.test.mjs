@@ -157,15 +157,76 @@ test('commit: no words uses the hardcoded "misc" message', () => {
   } finally { r.cleanup(); }
 });
 
-test('commit: shows staged state before committing', () => {
+test('status: unaffected by the committed view — still says staged, uppercase', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A'); r.git('commit', '-qm', 'init');
+    writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
+    r.git('add', 'a.txt');
+    const io = sink();
+    withCwd(r.dir, () => status(io));
+    const out = io.text();
+    assert.match(out, /^└ staged/m, 'kit status keeps the staged heading');
+    assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit status');
+    assert.match(out, /M a\.txt/, 'letters stay uppercase');
+  } finally { r.cleanup(); }
+});
+
+test('add: unaffected by the committed view — still says staged, uppercase', () => {
   const r = newRepo();
   try {
     writeFileSync(join(r.dir, 'a.txt'), 'a\n');
     r.git('add', '-A'); r.git('commit', '-qm', 'init');
     writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
     const io = sink();
+    withCwd(r.dir, () => add([], io));
+    const out = io.text();
+    assert.match(out, /^└ staged/m, 'kit add keeps the staged heading');
+    assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit add');
+    assert.match(out, /M a\.txt/, 'letters stay uppercase');
+  } finally { r.cleanup(); }
+});
+
+test('commit: shows the state it is about to commit, labelled committed', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A'); r.git('commit', '-qm', 'init');
+    writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
+    writeFileSync(join(r.dir, 'brand.txt'), 'new\n');
+    const io = sink();
     withCwd(r.dir, () => commit(['msg'], io));
-    assert.match(io.text(), /staged/, 'the pre-commit status render is intentional');
+    const out = io.text();
+    assert.match(out, /committed/, 'the pre-commit status render is intentional');
+    assert.doesNotMatch(out, /^├ staged/m, 'the staged heading is relabelled in the commit view');
+    assert.match(out, /a brand\.txt/, 'a new file reads as lowercase a');
+    assert.match(out, /m a\.txt/, 'a modification reads as lowercase m');
+  } finally { r.cleanup(); }
+});
+
+test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
+  // `git add .` inside kit commit stages everything reachable from the cwd.
+  // Run from sub/ so the top-level change cannot be staged: it then appears
+  // under unstaged with an uppercase letter, next to the lowercased letters of
+  // the committed section.
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    mkdirSync(join(r.dir, 'sub'), { recursive: true });
+    writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'k\n');
+    r.git('add', '-A'); r.git('commit', '-qm', 'init');
+
+    writeFileSync(join(r.dir, 'a.txt'), 'top-level change\n'); // unreachable from sub/
+    writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'changed\n'); // reachable
+
+    const io = sink();
+    withCwd(join(r.dir, 'sub'), () => commit(['msg'], io));
+    const out = io.text();
+    assert.match(out, /^├ committed/m, 'the reachable change is committed');
+    assert.match(out, /m keep\.txt/, 'lowercase under committed');
+    assert.match(out, /^└ unstaged/m, 'the unreachable change is not staged');
+    assert.match(out, /M \.\.\/a\.txt/, 'uppercase under unstaged: still git status there');
   } finally { r.cleanup(); }
 });
 

@@ -161,4 +161,58 @@ strings, so colour/layout changes need no repo and no git call.
 3. the git prose when no-oppping in subfolders is gone -> very nice!
 4. i am very happy with the Stage-1 fixes
 
+## Stage-1 additions (agreed; to implement)
+
+3. **`kit commit` labels its pre-commit status as `committed`.** The status
+   `kit commit` renders is a snapshot of exactly what the commit will contain,
+   so `staged` misreads as generic repo state. The header becomes `committed`
+   (chosen over `commit` / `in commit` / `→ committed` because it keeps the
+   headings a consistent past-participle triple: committed / unstaged /
+   untracked).
+
+   The unstaged and untracked sections are unchanged. From a subdirectory
+   `git add .` cannot reach outside, so `unstaged M ../x` is the only signal
+   that a subset is being committed; hiding it would hide the warning.
+
+   Status letters are **kept** — inside the committed section they describe the
+   commit's own effect (`a` adds, `d` deletes, `m` modifies), which the summary
+   line does not carry — but **lowercased in the committed section only**.
+   Lowercase survives skipping the header; uppercase elsewhere keeps the git
+   status meaning, so letter case alone distinguishes "in the commit" from
+   "still loose in the tree".
+
+   ```
+   main
+   ├ committed 
+     a lib/add.mjs
+     m README.md
+     d old.sh
+   ├ unstaged 
+     M ../kit.md
+   └ untracked 
+     ? notes.tmp
+   [master 946c2ee] misc
+    2 files changed, 1 insertion(+)
+   ```
+
+   Threaded as an internal option, not a CLI flag (consistent with the
+   no-toggles rule):
+
+   ```
+   commit.mjs  add([], io, { committed: true })
+   add.mjs     renderStatus(data, opts)
+   render.mjs  renderStatus(data, { committed = false } = {})
+   ```
+
+   This also replaces the dead `opts.quiet` branch in `add.mjs`, left over from
+   the earlier nesting discussion (nothing ever passed it).
+
+   Note: the render happens *before* the commit runs, so the label is
+   predictive. If a hook rejects the commit, the failure path prints its own
+   message, so this is never silent.
+
+   Tests: lowercase only inside the committed block; `kit status` and
+   `kit add` unaffected; a file in both committed and unstaged renders in both
+   sections; the `misc` default message end to end.
+
 
