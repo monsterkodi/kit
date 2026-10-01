@@ -120,6 +120,8 @@ strings, so colour/layout changes need no repo and no git call.
    - `ka hello`
   exited with the message: `kit add: fatal: pathspec 'hello' did not match any files`
   which is also the intended behaviour
+- user then modified this file and ran `ks` -> works, with nicely colored status display
+- user then ran `kc initial user feedback for stage-1` -> also works
 
 
 
