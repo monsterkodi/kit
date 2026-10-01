@@ -152,3 +152,8 @@ strings, so colour/layout changes need no repo and no git call.
 
    Side effect: a rename's `← origin` suffix is dropped when paths are
    relativised, since the origin is no longer a sibling of the destination.
+
+## User Feedback after Stage-1 fixes
+
+1. i forgot to test the help option in my first feedback round, so i start with that -> very nice!
+2. 
