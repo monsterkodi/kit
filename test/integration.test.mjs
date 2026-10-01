@@ -1,4 +1,6 @@
-// integration.test.mjs — command modules against real throwaway repositories.
+// integration.test.mjs 
+//
+// tests command modules against real throwaway repositories.
 //
 // Each test builds a temp repo, sets an identity so commit works without
 // touching the user's global git config, and asserts on real git behaviour.
