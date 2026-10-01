@@ -155,5 +155,10 @@ strings, so colour/layout changes need no repo and no git call.
 
 ## User Feedback after Stage-1 fixes
 
-1. i forgot to test the help option in my first feedback round, so i start with that -> very nice!
-2. 
+0. i will switch to first person view again here. sorry for set inconsistency with the first review section.
+1. i forgot to test the help option in my first feedback round, so i started with that -> very nice!
+2. i tested the new relative path display when inside a subfolder -> works like a charm!
+3. the git prose when no-oppping in subfolders is gone -> very nice!
+4. i am very happy with the Stage-1 fixes
+
+
