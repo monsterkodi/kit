@@ -436,6 +436,68 @@ test('log: a non-numeric argument errors instead of printing everything', () => 
   } finally { r.cleanup(); }
 });
 
+test('log: -l shows the commit body, which short mode hides', () => {
+  const r = newRepo();
+  try {
+    writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+    r.git('add', '-A');
+    writeFileSync(join(r.dir, 'msg.txt'),
+      'the subject line\n\nA body paragraph that only --long shows.\n\nAnd a second one.');
+    r.git('commit', '-q', '-F', 'msg.txt');
+
+    const short = sink();
+    withCwd(r.dir, () => log([], short, { width: 200 }));
+    assert.match(short.text(), /the subject line/);
+    assert.ok(!short.text().includes('A body paragraph'), 'short mode hides the body');
+
+    const long = sink();
+    withCwd(r.dir, () => log(['-l'], long, { width: 200 }));
+    assert.match(long.text(), /A body paragraph/, '-l shows the body');
+    assert.match(long.text(), /And a second one\./);
+  } finally { r.cleanup(); }
+});
+
+test('log: -l and --long are equivalent', () => {
+  const r = repoWithCommits(2);
+  try {
+    const a = sink();
+    const b = sink();
+    withCwd(r.dir, () => log(['-l', '2'], a, { width: 100 }));
+    withCwd(r.dir, () => log(['--long', '2'], b, { width: 100 }));
+    assert.equal(a.text(), b.text());
+  } finally { r.cleanup(); }
+});
+
+test('log: -l with a count returns exactly that many commits', () => {
+  const r = repoWithCommits(5);
+  try {
+    const io = sink();
+    withCwd(r.dir, () => log(['-l', '2'], io, { width: 100 }));
+    const hashes = io.text().match(/^[0-9a-f]{7} /gm) ?? [];
+    assert.equal(hashes.length, 2, 'a commit count, not a line count');
+  } finally { r.cleanup(); }
+});
+
+test('log: -l 0 is silent', () => {
+  const r = repoWithCommits(3);
+  try {
+    const io = sink();
+    const code = withCwd(r.dir, () => log(['-l', '0'], io, { width: 100 }));
+    assert.equal(code, 0);
+    assert.equal(io.text(), '');
+  } finally { r.cleanup(); }
+});
+
+test('log: output respects the terminal width it is given', () => {
+  const r = repoWithCommits(1);
+  try {
+    const io = sink();
+    withCwd(r.dir, () => log([], io, { width: 80 }));
+    const line = io.text().replace(/\u001b\[[0-9;]*m/g, '');
+    assert.ok([...line].length <= 80, `line of ${[...line].length} must fit 80`);
+  } finally { r.cleanup(); }
+});
+
 test('log: a subject with spaces and colons is preserved', () => {
   const r = newRepo();
   try {

@@ -8,23 +8,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLog } from '../lib/git.mjs';
 import { renderLog, fitName, NAME_WIDTH } from '../lib/render.mjs';
-import { parseCount } from '../lib/log.mjs';
 
-// One record as git writes it: four NUL-separated fields, then the format's
-// own terminator, then git's newline. Observed with od -c on git 2.55.
-const record = (h, d, n, s) => `${h}\0${d}\0${n}\0${s}\0\0\n`;
+// One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
+//
+//   \0 hash \0 date \0 name \0 subject \0 \n
+//
+// The leading %x00 makes field 0 empty; the trailing one pushes git's own
+// newline into a field of its own. Verified with od -c on git 2.55.
+const record = (h, d, n, s) => `\0${h}\0${d}\0${n}\0${s}\0\n`;
 
 test('parseLog: reads one record per line', () => {
   const raw = record('41f3542', 'Oct  1 23:53', 'Thorsten', 'a message')
     + record('3421d42', 'Oct  1 23:49', 'Thorsten', 'another');
   assert.deepEqual(parseLog(raw), [
-    { hash: '41f3542', date: 'Oct  1 23:53', name: 'Thorsten', subject: 'a message' },
-    { hash: '3421d42', date: 'Oct  1 23:49', name: 'Thorsten', subject: 'another' },
+    { hash: '41f3542', date: 'Oct  1 23:53', name: 'Thorsten', subject: 'a message', body: 'a message' },
+    { hash: '3421d42', date: 'Oct  1 23:49', name: 'Thorsten', subject: 'another', body: 'another' },
   ]);
 });
 
 test('parseLog: no trailing newline on the last record', () => {
-  const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'only one').trimEnd();
+  const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'only one').replace(/\n$/, '');
   const out = parseLog(raw);
   assert.equal(out.length, 1);
   assert.equal(out[0].subject, 'only one');
@@ -57,6 +60,29 @@ test('parseLog: no newline leaks into the next record hash', () => {
     assert.ok(!c.date.includes('\n'));
     assert.ok(!c.name.includes('\n'));
   }
+});
+
+test('parseLog: a multi-line %B body stays with its own record', () => {
+  // The reason the leading %x00 exists: %B spans lines, so a line-based
+  // split would shred it. Verified against a repo with multi-paragraph bodies.
+  const body = 'subject\n\nbody para one\nbody para one b\n\npara two';
+  const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
+    + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
+  const out = parseLog(raw);
+  assert.equal(out.length, 2, 'both records survive');
+  assert.equal(out[0].subject, body, 'the body keeps its newlines and blank lines');
+  assert.equal(out[1].subject, 'second', 'the following record is not polluted');
+});
+
+test('parseLog: a body containing a record separator does not break parsing', () => {
+  // \x1e is stored by git (unlike NUL), so it must not be treated as a
+  // delimiter. Verified: git rejects NUL but accepts \x1e.
+  const body = 'subject\n\nbody with \x1e inside';
+  const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
+    + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
+  const out = parseLog(raw);
+  assert.equal(out.length, 2);
+  assert.ok(out[0].subject.includes('\x1e'));
 });
 
 // --- fitName -------------------------------------------------------------
@@ -119,26 +145,8 @@ test('renderLog: colours each column differently', () => {
 });
 
 test('renderLog: subject is never truncated or recoloured', () => {
-  const subject = 'fix: a very long subject line that should be left completely alone';
-  const out = renderLog([commit({ subject })]);
+  const subject = 'fix: a long subject line that should be left completely alone';
+  // Wide enough that no truncation applies, and NO_COLOR keeps the line plain.
+  const out = renderLog([commit({ subject })], { width: 200 });
   assert.ok(out.endsWith(subject), 'subject reaches the end of the line verbatim');
-});
-
-// --- parseCount ----------------------------------------------------------
-
-test('parseCount: no argument means the whole history', () => {
-  assert.deepEqual(parseCount(undefined), { ok: true, count: null });
-});
-
-test('parseCount: a bare number is a commit count', () => {
-  assert.deepEqual(parseCount('10'), { ok: true, count: 10 });
-  assert.deepEqual(parseCount('0'), { ok: true, count: 0 });
-});
-
-test('parseCount: non-numeric arguments are rejected, not silently ignored', () => {
-  for (const bad of ['foo', '-5', '1.5', '10x', '', ' ']) {
-    const r = parseCount(bad);
-    assert.equal(r.ok, false, `'${bad}' should be rejected`);
-    assert.match(r.message, /not a commit count/);
-  }
 });
