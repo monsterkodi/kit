@@ -2,10 +2,10 @@
 /*
   kit.mjs
 
-    kit status              report the working tree; silent when clean
-    kit add [path…]         stage changes, then show what was staged
-    kit commit [words…]     stage, then commit with the words as the message
-    kit log [n]             one line per commit, optionally the n most recent
+    kit status [path…]       report the working tree; silent when clean
+    kit add [path…]          stage changes, then show what was staged
+    kit commit [words…]      stage, then commit with the words as the message
+    kit log [n]              one line per commit, optionally the n most recent
 
   Unknown subcommands are an error by design: kit deliberately does not fall
   through to raw git. Anything kit does not cover is better served by git.
@@ -18,7 +18,7 @@ import { log } from './lib/log.mjs';
 
 const USAGE = `kit — a git wrapper
 
-  kit status              report the working tree; silent when clean
+  kit status [path…]      report the working tree; silent when clean
   kit add [path…]         stage changes, then show what was staged
   kit commit [words…]     stage, then commit using the words as the message
   kit log [n]             one line per commit, optionally the n most recent
@@ -33,7 +33,7 @@ const [cmd, ...rest] = process.argv.slice(2);
 
 switch (cmd) {
   case 'status':
-    process.exit(status(io));
+    process.exit(status(rest, io));
     break;
   case 'add':
     process.exit(add(rest, io));
