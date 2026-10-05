@@ -354,15 +354,15 @@ test('log: empty history is silent and exits 0', () => {
   } finally { r.cleanup(); }
 });
 
-test('log: lists every commit, newest first', () => {
+test('log: lists every commit, oldest first', () => {
   const r = repoWithCommits(3);
   try {
     const io = sink();
     withCwd(r.dir, () => log([], io));
     const lines = io.text().split('\n');
     assert.equal(lines.length, 3);
-    assert.match(lines[0], /commit 3$/, 'newest first');
-    assert.match(lines[2], /commit 1$/);
+    assert.match(lines[0], /commit 1$/, 'oldest first');
+    assert.match(lines[2], /commit 3$/, 'newest last');
   } finally { r.cleanup(); }
 });
 
@@ -373,8 +373,12 @@ test('log: a bare number limits to that many commits', () => {
     withCwd(r.dir, () => log(['2'], io));
     const lines = io.text().split('\n');
     assert.equal(lines.length, 2, 'a commit count, not a line count');
-    assert.match(lines[0], /commit 5$/);
-    assert.match(lines[1], /commit 4$/);
+    // The count still selects the two *most recent* commits — reversing the
+    // display must not turn `kit log 2` into the two oldest. git applies -n
+    // before --reverse, so the limit is unaffected by the ordering.
+    assert.match(lines[0], /commit 4$/, 'the older of the two most recent');
+    assert.match(lines[1], /commit 5$/, 'the newest is last');
+    assert.ok(!lines.some((l) => /commit [123]$/.test(l)), 'nothing older is shown');
   } finally { r.cleanup(); }
 });
 
