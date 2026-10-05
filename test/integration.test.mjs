@@ -19,7 +19,7 @@ import { add } from '../lib/add.mjs';
 import { commit, messageFor } from '../lib/commit.mjs';
 import { log } from '../lib/log.mjs';
 
-/** Create an empty repo in a temp dir; returns its path. */
+// Create an empty repo in a temp dir; returns its path.
 function newRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'kit-test-'));
   // Identity must come from the environment, not -c flags: this machine has
@@ -53,7 +53,7 @@ function newRepo() {
   return { dir, git, env, branch, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-/** Capturing output sink. */
+// Capturing output sink.
 function sink() {
   const out = [];
   const err = [];
@@ -334,7 +334,7 @@ test('all commands: not a git repository exits 128', () => {
 
 // --- kit log -------------------------------------------------------------
 
-/** A repo with `n` commits, oldest first, message "commit <i>". */
+// A repo with `n` commits, oldest first, message "commit <i>".
 function repoWithCommits(n) {
   const r = newRepo();
   for (let i = 1; i <= n; i++) {

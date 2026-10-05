@@ -104,7 +104,7 @@ test('renderTracking: in-sync renders empty', () => {
   skipping the heading. Uppercase is kept everywhere else.
 */
 
-/** A tree with entries in all three groups, for the committed-view tests. */
+// A tree with entries in all three groups, for the committed-view tests.
 const mixedTree = () => ({
   branch: 'main', ahead: 0, behind: 0, detached: false,
   staged: [{ path: 'lib/add.mjs', code: 'A' }, { path: 'README.md', code: 'M' }],
