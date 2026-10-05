@@ -35,7 +35,20 @@ function newRepo() {
       cwd: dir, encoding: 'utf8', env,
     });
   git('init', '-q');
-  return { dir, git, env, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  // The initial branch name is machine state, not kit's: git takes it from
+  // init.defaultBranch (this machine: main), and falls back to master when that
+  // is unset. So the name is read back from the repo rather than assumed, and
+  // tests assert against it — otherwise every branch-name assertion here breaks
+  // the day the user changes one global git setting.
+  //
+  // `symbolic-ref` rather than `config init.defaultBranch`: it reports the name
+  // git actually used, so it does not re-derive git's precedence rules (config
+  // first, then its own master fallback — GIT_DEFAULT_BRANCH does not apply
+  // here, verified on git 2.55). It also works before the first commit, where
+  // `rev-parse --abbrev-ref HEAD` fails on an unborn HEAD.
+  const branch = git('symbolic-ref', '--short', 'HEAD').trim();
+  assert.ok(branch, 'git init should leave a named branch to read back');
+  return { dir, git, env, branch, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 /** Capturing output sink. */
@@ -86,7 +99,10 @@ test('status: dirty repo prints branch, sections and untracked dir collapsed', (
     const io = sink();
     const code = withCwd(r.dir, () => status(io));
     assert.equal(code, 0);
-    assert.match(io.text(), /master/);
+    // The branch header line is exactly the name git chose at init (no upstream
+    // in a fresh repo, so no tracking suffix is appended). Compared as a string,
+    // not a regex, so a branch name containing '.' cannot match loosely.
+    assert.equal(io.text().split('\n')[0], r.branch);
     // Only unstaged and untracked are populated here, so unstaged is not last.
     assert.match(io.text(), /^├ unstaged/m);
     assert.match(io.text(), /^└ untracked/m);
