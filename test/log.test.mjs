@@ -1,20 +1,24 @@
-// log.test.mjs — `kit log` parsing and rendering.
-//
-// parseLog is tested against the exact byte shape git produces (verified with
-// od -c), because the record separator is the one thing here that surprised
-// the implementation. Rendering tests need no git at all.
+/*
+  log.test.mjs — `kit log` parsing and rendering.
+
+  parseLog is tested against the exact byte shape git produces (verified with
+  od -c), because the record separator is the one thing here that surprised
+  the implementation. Rendering tests need no git at all.
+*/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLog } from '../lib/git.mjs';
 import { renderLog, fitName, NAME_WIDTH } from '../lib/render.mjs';
 
-// One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
-//
-//   \0 hash \0 date \0 name \0 subject \0 \n
-//
-// The leading %x00 makes field 0 empty; the trailing one pushes git's own
-// newline into a field of its own. Verified with od -c on git 2.55.
+/*
+  One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
+
+    \0 hash \0 date \0 name \0 subject \0 \n
+
+  The leading %x00 makes field 0 empty; the trailing one pushes git's own
+  newline into a field of its own. Verified with od -c on git 2.55.
+*/
 const record = (h, d, n, s) => `\0${h}\0${d}\0${n}\0${s}\0\n`;
 
 test('parseLog: reads one record per line', () => {

@@ -1,10 +1,12 @@
-// relativise.test.mjs 
-//
-// tests cwd-relative path handling.
-//
-// `git status --porcelain=v2 -z` reports paths relative to the repository
-// root regardless of cwd, so kit rewrites them to match what git's own
-// non-porcelain output would show. These tests pin that behaviour.
+/*
+  relativise.test.mjs
+
+  tests cwd-relative path handling.
+
+  `git status --porcelain=v2 -z` reports paths relative to the repository
+  root regardless of cwd, so kit rewrites them to match what git's own
+  non-porcelain output would show. These tests pin that behaviour.
+*/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

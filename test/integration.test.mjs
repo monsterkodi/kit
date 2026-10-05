@@ -1,9 +1,11 @@
-// integration.test.mjs 
-//
-// tests command modules against real throwaway repositories.
-//
-// Each test builds a temp repo, sets an identity so commit works without
-// touching the user's global git config, and asserts on real git behaviour.
+/*
+  integration.test.mjs
+
+  tests command modules against real throwaway repositories.
+
+  Each test builds a temp repo, sets an identity so commit works without
+  touching the user's global git config, and asserts on real git behaviour.
+*/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

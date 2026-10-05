@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// kit.mjs
-//
-//   kit status              report the working tree; silent when clean
-//   kit add [path…]         stage changes, then show what was staged
-//   kit commit [words…]     stage, then commit with the words as the message
-//   kit log [n]             one line per commit, optionally the n most recent
-//
-// Unknown subcommands are an error by design: kit deliberately does not fall
-// through to raw git. Anything kit does not cover is better served by git.
+/*
+  kit.mjs
+
+    kit status              report the working tree; silent when clean
+    kit add [path…]         stage changes, then show what was staged
+    kit commit [words…]     stage, then commit with the words as the message
+    kit log [n]             one line per commit, optionally the n most recent
+
+  Unknown subcommands are an error by design: kit deliberately does not fall
+  through to raw git. Anything kit does not cover is better served by git.
+*/
 
 import { status } from './lib/status.mjs';
 import { add } from './lib/add.mjs';

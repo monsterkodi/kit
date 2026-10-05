@@ -1,7 +1,9 @@
-// render.test.mjs — unit tests for the pure renderers.
-//
-// No git, no repository, no child processes: these assert layout and colour
-// decisions directly. Run with NO_COLOR=1 so assertions stay readable.
+/*
+  render.test.mjs — unit tests for the pure renderers.
+
+  No git, no repository, no child processes: these assert layout and colour
+  decisions directly. Run with NO_COLOR=1 so assertions stay readable.
+*/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -93,12 +95,14 @@ test('renderTracking: in-sync renders empty', () => {
   assert.match(renderTracking({ ahead: 3, behind: 1 }), /↓3 ↑1/);
 });
 
-// --- committed view (kit commit's pre-commit status) ---------------------
-//
-// `kit commit` renders the state it is about to commit. That snapshot is
-// exactly the commit's contents, so the heading says "committed" rather than
-// "staged", and the status letters are lowercased so the meaning survives
-// skipping the heading. Uppercase is kept everywhere else.
+/*
+  committed view (kit commit's pre-commit status)
+
+  `kit commit` renders the state it is about to commit. That snapshot is
+  exactly the commit's contents, so the heading says "committed" rather than
+  "staged", and the status letters are lowercased so the meaning survives
+  skipping the heading. Uppercase is kept everywhere else.
+*/
 
 /** A tree with entries in all three groups, for the committed-view tests. */
 const mixedTree = () => ({

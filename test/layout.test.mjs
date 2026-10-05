@@ -1,6 +1,8 @@
-// layout.test.mjs — `kit log` width handling and the --long layout.
-//
-// All pure: renderLog takes the width as data, so no TTY and no git are needed.
+/*
+  layout.test.mjs — `kit log` width handling and the --long layout.
+
+  All pure: renderLog takes the width as data, so no TTY and no git are needed.
+*/
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
