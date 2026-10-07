@@ -58,11 +58,11 @@ test('parseStatusV2: filename with a space is one path', () => {
   markers are the two parts of kit's output that get restyled, so the tests
   below pin what they mean and leave how they look open.
 */
-import { plain, headerOf, headingOf, headingLines } from './style.mjs';
+import { plain, plainTheme, headerOf, headingOf, headingLines } from './style.mjs';
 
 test('renderStatus: clean tree renders nothing', () => {
     const d = { branch: 'main', staged: [], unstaged: [], untracked: [] };
-    assert.equal(renderStatus(d), '');
+    assert.equal(renderStatus(d, { theme: plainTheme }), '');
 });
 
 test('renderStatus: dirty tree has branch header and all three sections', () => {
@@ -72,7 +72,7 @@ test('renderStatus: dirty tree has branch header and all three sections', () => 
         unstaged: [{ path: 'src/a.mjs', code: 'M' }],
         untracked: [{ path: 'build/' }],
     };
-    const out = renderStatus(d);
+    const out = renderStatus(d, { theme: plainTheme });
     assert.match(out, /main ↓2/);
     assert.match(out, headingOf('staged'));
     assert.match(out, headingOf('unstaged'));
@@ -86,14 +86,14 @@ test('renderStatus: empty sections are omitted and the last group closes the lis
     const d = {
         branch: 'main', staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    const heads = headingLines(renderStatus(d));
+    const heads = headingLines(renderStatus(d, { theme: plainTheme }));
     assert.doesNotMatch(heads.join('\n'), headingOf('staged'), 'an empty group is not rendered');
     assert.equal(heads.length, 1, 'only the one non-empty group renders');
     assert.match(heads[0], headingOf('unstaged'), 'the only group is also the last');
 });
 
 test('renderBranch: detached head shows short oid', () => {
-    const out = renderBranch({ detached: true, oid: 'abcdef1234567890' });
+    const out = renderBranch({ detached: true, oid: 'abcdef1234567890' }, { theme: plainTheme });
     assert.match(out, /detached@abcdef1/);
 });
 
@@ -110,7 +110,7 @@ test('renderStatus: the header names the repository root, then the branch', () =
         root: '/home/kodi/s/kit', branch: 'main',
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    assert.match(renderStatus(d, { home: '/home/kodi' }), headerOf('~/s/kit', 'main'));
+    assert.match(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme }), headerOf('~/s/kit', 'main'));
 });
 
 test('renderStatus: the root identifies the repository, not the directory kit ran in', () => {
@@ -118,7 +118,7 @@ test('renderStatus: the root identifies the repository, not the directory kit ra
         root: '/home/kodi/a', branch: 'master',
         staged: [], unstaged: [{ path: '../top.txt', code: 'M' }], untracked: [],
     };
-    assert.match(renderStatus(d, { home: '/home/kodi' }), headerOf('~/a', 'master'));
+    assert.match(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme }), headerOf('~/a', 'master'));
 });
 
 test('renderStatus: ahead and behind stay legible after the root', () => {
@@ -126,7 +126,7 @@ test('renderStatus: ahead and behind stay legible after the root', () => {
         root: '/home/kodi/s/kit', branch: 'main', ahead: 2, behind: 1,
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    const header = plain(renderStatus(d, { home: '/home/kodi' })).split('\n')[0];
+    const header = plain(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme })).split('\n')[0];
     assert.match(header, headerOf('~/s/kit', 'main ↓2 ↑1'));
 });
 
@@ -135,7 +135,7 @@ test('renderStatus: a detached head keeps its short oid beside the root', () => 
         root: '/home/kodi/s/kit', detached: true, oid: 'abcdef1234567890',
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    assert.match(renderStatus(d, { home: '/home/kodi' }), headerOf('~/s/kit', 'detached@abcdef1'));
+    assert.match(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme }), headerOf('~/s/kit', 'detached@abcdef1'));
 });
 
 test('renderStatus: a root outside home is shown in full', () => {
@@ -143,7 +143,7 @@ test('renderStatus: a root outside home is shown in full', () => {
         root: '/tmp/kit-test-1', branch: 'main',
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    assert.match(renderStatus(d, { home: '/home/kodi' }), headerOf('/tmp/kit-test-1', 'main'));
+    assert.match(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme }), headerOf('/tmp/kit-test-1', 'main'));
 });
 
 test('renderStatus: a root that merely starts with home is not shortened', () => {
@@ -152,12 +152,12 @@ test('renderStatus: a root that merely starts with home is not shortened', () =>
         root: '/home/kodi-other', branch: 'main',
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
-    assert.match(renderStatus(d, { home: '/home/kodi' }), headerOf('/home/kodi-other', 'main'));
+    assert.match(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme }), headerOf('/home/kodi-other', 'main'));
 });
 
 test('renderStatus: without a root the header is the branch alone', () => {
     const d = { branch: 'main', staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [] };
-    assert.equal(plain(renderStatus(d, { home: '/home/kodi' })).split('\n')[0], 'main');
+    assert.equal(plain(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme })).split('\n')[0], 'main');
 });
 
 test('abbreviateHome: a path under home loses the prefix', () => {
@@ -178,8 +178,8 @@ test('abbreviateHome: with no home to compare against, the path stands', () => {
 });
 
 test('renderTracking: in-sync renders empty', () => {
-    assert.equal(renderTracking({ ahead: 0, behind: 0 }), '');
-    assert.match(renderTracking({ ahead: 3, behind: 1 }), /↓3 ↑1/);
+    assert.equal(renderTracking({ ahead: 0, behind: 0 }, { theme: plainTheme }), '');
+    assert.match(renderTracking({ ahead: 3, behind: 1 }, { theme: plainTheme }), /↓3 ↑1/);
 });
 
 /*
@@ -199,7 +199,7 @@ const mixedTree = () => ({
 });
 
 test('renderStatus: committed view renames the staged heading', () => {
-    const out = renderStatus(mixedTree(), { committed: true });
+    const out = renderStatus(mixedTree(), { committed: true, theme: plainTheme });
     assert.match(out, headingOf('committed'), 'staged heading becomes committed');
     assert.doesNotMatch(out, headingOf('staged'), 'staged heading is gone');
     assert.match(out, headingOf('unstaged'), 'unstaged is untouched');
@@ -207,13 +207,13 @@ test('renderStatus: committed view renames the staged heading', () => {
 });
 
 test('renderStatus: default view still says staged', () => {
-    const out = renderStatus(mixedTree());
+    const out = renderStatus(mixedTree(), { theme: plainTheme });
     assert.match(out, headingOf('staged'));
     assert.doesNotMatch(out, /committed/);
 });
 
 test('renderStatus: committed view lowercases letters in that section only', () => {
-    const out = renderStatus(mixedTree(), { committed: true });
+    const out = renderStatus(mixedTree(), { committed: true, theme: plainTheme });
     assert.match(out, /a lib\/add\.mjs/);
     assert.match(out, /m README\.md/);
     assert.match(out, /M \.\.\/kit\.md/);
@@ -224,11 +224,11 @@ test('renderStatus: deletion letter is lowercased in the committed view', () => 
         branch: 'main', staged: [{ path: 'old.sh', code: 'D' }],
         unstaged: [], untracked: [],
     };
-    assert.match(renderStatus(d, { committed: true }), /d old\.sh/);
+    assert.match(renderStatus(d, { ...{ committed: true }, theme: plainTheme }), /d old\.sh/);
 });
 
 test('renderStatus: committed view keeps untracked question mark', () => {
-    const out = renderStatus(mixedTree(), { committed: true });
+    const out = renderStatus(mixedTree(), { committed: true, theme: plainTheme });
     assert.match(out, /\? notes\.tmp/, 'the ? marker is unchanged');
 });
 
@@ -241,7 +241,7 @@ test('renderStatus: a file in both committed and unstaged renders in both', () =
         unstaged: [{ path: 'a.mjs', code: 'M' }],
         untracked: [],
     };
-    const out = renderStatus(d, { committed: true });
+    const out = renderStatus(d, { ...{ committed: true }, theme: plainTheme });
     assert.match(out, /m a\.mjs/, 'lowercase under committed');
     assert.match(out, /M a\.mjs/, 'uppercase under unstaged');
     assert.equal(out.match(/a\.mjs/g).length, 2, 'listed exactly twice');
@@ -249,17 +249,17 @@ test('renderStatus: a file in both committed and unstaged renders in both', () =
 
 test('renderStatus: committed view on a clean tree still renders nothing', () => {
     const d = { branch: 'main', staged: [], unstaged: [], untracked: [] };
-    assert.equal(renderStatus(d, { committed: true }), '');
+    assert.equal(renderStatus(d, { ...{ committed: true }, theme: plainTheme }), '');
 });
 
 test('renderStatus: the heading column stays aligned across the groups', () => {
-    const heads = headingLines(renderStatus(mixedTree(), { committed: true }));
+    const heads = headingLines(renderStatus(mixedTree(), { committed: true, theme: plainTheme }));
     assert.equal(heads.length, 3);
     assert.equal(new Set(heads.map((l) => displayWidth(plain(l)))).size, 1, 'all three headings same width');
 });
 
 test('renderStatus: every group carries a marker, and all of one width', () => {
-    const heads = headingLines(renderStatus(mixedTree()));
+    const heads = headingLines(renderStatus(mixedTree(), { theme: plainTheme }));
     assert.equal(heads.length, 3);
     const offsets = new Set(heads.map((l) => {
         const word = l.trim().split(/\s+/).pop();
@@ -270,7 +270,7 @@ test('renderStatus: every group carries a marker, and all of one width', () => {
 });
 
 test('renderStatus: entries sit under their heading, whatever the marker is', () => {
-    const out = renderStatus(mixedTree());
+    const out = renderStatus(mixedTree(), { theme: plainTheme });
     const head = headingLines(out)[0];
     const word = head.trim().split(/\s+/).pop();
     const wordColumn = displayWidth(plain(head).trimEnd()) - displayWidth(word);
@@ -292,6 +292,7 @@ test('renderCommitSuccess: keeps branch, hash, subject and stat; drops noise', (
             ' create mode 100644 new.txt',
             ' delete mode 100644 old.txt',
         ].join('\n'),
+        { theme: plainTheme },
     );
     assert.match(out, /\[master e3cd348\] fourth/);
     assert.match(out, /1 file changed, 1 insertion/);
@@ -300,7 +301,7 @@ test('renderCommitSuccess: keeps branch, hash, subject and stat; drops noise', (
 });
 
 test('renderCommitSuccess: no trailing blank lines', () => {
-    const out = renderCommitSuccess('[main abc1234] msg\n 1 file changed\n\n\n');
+    const out = renderCommitSuccess('[main abc1234] msg\n 1 file changed\n\n\n', { theme: plainTheme });
     assert.equal(out.split('\n').length, 2);
 });
 
@@ -313,18 +314,18 @@ test('renderCommitFailure: extracts only the concluding line, drops hint', () =>
         '',
         'nothing added to commit but untracked files present (use "git add" to track)',
     ].join('\n');
-    const out = renderCommitFailure(stdout);
+    const out = renderCommitFailure(stdout, { theme: plainTheme });
     assert.equal(out, 'nothing added to commit but untracked files present');
     assert.doesNotMatch(out, /On branch/);
     assert.doesNotMatch(out, /new\.txt/);
 });
 
 test('renderCommitFailure: clean tree renders nothing', () => {
-    assert.equal(renderCommitFailure('On branch master\nnothing to commit, working tree clean'), '');
+    assert.equal(renderCommitFailure('On branch master\nnothing to commit, working tree clean', { theme: plainTheme }), '');
 });
 
 test('renderCommitFailure: unknown output is passed through, not swallowed', () => {
-    const out = renderCommitFailure('something unexpected happened');
+    const out = renderCommitFailure('something unexpected happened', { theme: plainTheme });
     assert.equal(out, 'something unexpected happened');
 });
 

@@ -1,5 +1,5 @@
 /*
-  style.mjs — assertions that survive a restyle.
+  style.mjs — assertions that survive a restyle, and the plain palette they run with.
 
   Two parts of kit's output are decoration-heavy and therefore likely to be
   redesigned: the branch header (repository root, then branch) and the marker in
@@ -16,14 +16,29 @@
   would put the style back into the tests one file at a time.
 */
 
+import { createTheme } from '../lib/theme.mjs';
+
 /*
   Strip SGR escape sequences.
 
-  The suite runs with NO_COLOR set, so this is belt and braces — but anyone
-  running `node --test test/` straight from a prompt has colour on, and a test
-  that only passes under NO_COLOR is a test that lies half the time.
+  The suite runs with a plain palette and no NO_COLOR in the environment, so
+  there should be nothing to strip. Kept anyway, for the tests that deliberately
+  render with colour enabled: they need the text without the escapes to compare
+  against, and a test that could only pass in one environment would be a test
+  that lies half the time.
 */
 export const plain = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
+
+/*
+  The palette the render tests assert against.
+
+  The renderers take a palette as an argument now, so a test asks for plain
+  output by handing over a plain palette rather than by setting NO_COLOR. That
+  distinction is the point: NO_COLOR is a property of the environment and also
+  governs node's test runner, so a suite that needed it for its own assertions
+  could not have a coloured runner.
+*/
+export const plainTheme = createTheme(false);
 
 const FILLER = '[\\s\\p{P}\\p{S}]*';
 

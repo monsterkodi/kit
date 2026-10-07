@@ -19,7 +19,7 @@ import { status } from '../lib/status.mjs';
 import { add } from '../lib/add.mjs';
 import { commit, messageFor } from '../lib/commit.mjs';
 import { log } from '../lib/log.mjs';
-import { headerOf, headingOf } from './style.mjs';
+import { headerOf, headingOf, plainTheme } from './style.mjs';
 
 const KIT = fileURLToPath(new URL('../kit.mjs', import.meta.url));
 
@@ -55,11 +55,28 @@ function newRepo(where)
     return { dir, git, env, branch, cleanup };
 }
 
+/*
+  A capturing io that always hands the command a plain palette.
+
+  Without the palette argument these commands fall back to the default palette,
+  which is coloured whenever the environment has not forbidden it — and the suite
+  no longer sets NO_COLOR, so the runner can stay coloured. The theme is attached
+  here rather than at each of the 47 call sites, because every one of them wants
+  the same thing and the ones that did not would silently start asserting on
+  escape sequences.
+*/
 function sink()
 {
     const out = [];
     const err = [];
-    return { out, err, log: (s) => out.push(s), error: (s) => err.push(s), text: () => out.join('\n') };
+    return {
+        out,
+        err,
+        log: (s) => out.push(s),
+        error: (s) => err.push(s),
+        text: () => out.join('\n'),
+        opts: { theme: plainTheme },
+    };
 }
 
 const withCwd = (dir, fn) => {
@@ -90,7 +107,7 @@ test('status: clean repo is completely silent and exits 0', () => {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
-        const code = withCwd(r.dir, () => status([], io));
+        const code = withCwd(r.dir, () => status([], io, io.opts));
         assert.equal(code, 0);
         assert.equal(io.text(), '', 'clean repo must print nothing at all');
     }
@@ -111,7 +128,7 @@ test('status: dirty repo prints branch, sections and untracked dir collapsed', (
         writeFileSync(join(r.dir, 'build', 'deep', 'x.txt'), 'x\n');
 
         const io = sink();
-        const code = withCwd(r.dir, () => status([], io));
+        const code = withCwd(r.dir, () => status([], io, io.opts));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(r.dir, r.branch));
         assert.match(io.text(), headingOf('unstaged'));
@@ -134,7 +151,7 @@ test('add: stages new files (the -A vs . behaviour) and reports them', () => {
         writeFileSync(join(r.dir, 'new.txt'), 'n\n');
 
         const io = sink();
-        withCwd(r.dir, () => add([], io));
+        withCwd(r.dir, () => add([], io, io.opts));
         const staged = r.git('diff', '--cached', '--name-only');
         assert.match(staged, /new\.txt/, 'git add . must stage a brand-new file');
         assert.match(io.text(), /A new\.txt/, 'add should report what it staged');
@@ -156,7 +173,7 @@ test('add: explicit paths are forwarded', () => {
         writeFileSync(join(r.dir, 'b.txt'), 'bb\n');
 
         const io = sink();
-        withCwd(r.dir, () => add(['a.txt'], io));
+        withCwd(r.dir, () => add(['a.txt'], io, io.opts));
         const staged = r.git('diff', '--cached', '--name-only');
         assert.match(staged, /a\.txt/);
         assert.doesNotMatch(staged, /b\.txt/, 'b.txt must remain unstaged');
@@ -174,7 +191,7 @@ test('add: clean tree stays silent', () => {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
-        withCwd(r.dir, () => add([], io));
+        withCwd(r.dir, () => add([], io, io.opts));
         assert.equal(io.text(), '');
     }
     finally
@@ -193,7 +210,7 @@ test('commit: words become the message, new files included', () => {
         writeFileSync(join(r.dir, 'brand.txt'), 'new\n');
 
         const io = sink();
-        const code = withCwd(r.dir, () => commit(['fix', 'the', 'prompt'], io));
+        const code = withCwd(r.dir, () => commit(['fix', 'the', 'prompt'], io, io.opts));
         assert.equal(code, 0);
         assert.equal(r.git('log', '-1', '--pretty=%s').trim(), 'fix the prompt');
         const files = r.git('show', '--name-only', '--pretty=format:', 'HEAD');
@@ -213,7 +230,7 @@ test('commit: no words uses the hardcoded "misc" message', () => {
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
         const io = sink();
-        withCwd(r.dir, () => commit([], io));
+        withCwd(r.dir, () => commit([], io, io.opts));
         assert.equal(r.git('log', '-1', '--pretty=%s').trim(), 'misc');
     }
     finally
@@ -231,7 +248,7 @@ test('status: unaffected by the committed view — still says staged, uppercase'
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
         r.git('add', 'a.txt');
         const io = sink();
-        withCwd(r.dir, () => status([], io));
+        withCwd(r.dir, () => status([], io, io.opts));
         const out = io.text();
         assert.match(out, headingOf('staged'), 'kit status keeps the staged heading');
         assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit status');
@@ -251,7 +268,7 @@ test('add: unaffected by the committed view — still says staged, uppercase', (
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
         const io = sink();
-        withCwd(r.dir, () => add([], io));
+        withCwd(r.dir, () => add([], io, io.opts));
         const out = io.text();
         assert.match(out, headingOf('staged'), 'kit add keeps the staged heading');
         assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit add');
@@ -272,7 +289,7 @@ test('commit: shows the state it is about to commit, labelled committed', () => 
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
         writeFileSync(join(r.dir, 'brand.txt'), 'new\n');
         const io = sink();
-        withCwd(r.dir, () => commit(['msg'], io));
+        withCwd(r.dir, () => commit(['msg'], io, io.opts));
         const out = io.text();
         assert.match(out, /committed/, 'the pre-commit status render is intentional');
         assert.doesNotMatch(out, headingOf('staged'), 'the staged heading is relabelled in the commit view');
@@ -298,7 +315,7 @@ test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
         writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'changed\n'); // reachable
 
         const io = sink();
-        withCwd(join(r.dir, 'sub'), () => commit(['msg'], io));
+        withCwd(join(r.dir, 'sub'), () => commit(['msg'], io, io.opts));
         const out = io.text();
         assert.match(out, headingOf('committed'), 'the reachable change is committed');
         assert.match(out, /m keep\.txt/, 'lowercase under committed');
@@ -319,7 +336,7 @@ test('commit: nothing to commit exits 1 and stays silent on a clean tree', () =>
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
 
         const io = sink();
-        const code = withCwd(r.dir, () => commit(['msg'], io));
+        const code = withCwd(r.dir, () => commit(['msg'], io, io.opts));
         assert.equal(code, 1);
         assert.equal(io.text(), '', 'a clean tree produces no output at all');
     }
@@ -336,7 +353,7 @@ test('commit: fully clean tree is silent', () => {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
-        const code = withCwd(r.dir, () => commit(['msg'], io));
+        const code = withCwd(r.dir, () => commit(['msg'], io, io.opts));
         assert.equal(code, 1);
         assert.equal(io.text(), '');
     }
@@ -361,7 +378,7 @@ test('commit: no-op from a subdirectory is silent, not git prose', () => {
         writeFileSync(join(r.dir, 'scratch.tmp'), 'x\n');
 
         const io = sink();
-        const code = withCwd(join(r.dir, 'sub'), () => commit(['noop'], io));
+        const code = withCwd(join(r.dir, 'sub'), () => commit(['noop'], io, io.opts));
         assert.equal(code, 1, 'git still reports nothing to commit');
         assert.doesNotMatch(io.text(), /nothing added to commit/);
         assert.doesNotMatch(io.text(), /untracked files present/);
@@ -377,10 +394,10 @@ test('all commands: not a git repository exits 128', () => {
     try
     {
         const cases = [
-            ['status', (io) => status([], io)],
-            ['add', (io) => add([], io)],
-            ['commit', (io) => commit(['x'], io)],
-            ['log', (io) => log([], io)],
+            ['status', (io) => status([], io, io.opts)],
+            ['add', (io) => add([], io, io.opts)],
+            ['commit', (io) => commit(['x'], io, io.opts)],
+            ['log', (io) => log([], io, io.opts)],
         ];
         for (const [name, invoke] of cases)
         {
@@ -419,7 +436,7 @@ test('status: the header names the repository root, not the directory run in', (
     {
         mkdirSync(join(r.dir, 'sub'));
         const io = sink();
-        const code = withCwd(join(r.dir, 'sub'), () => status([], io));
+        const code = withCwd(join(r.dir, 'sub'), () => status([], io, io.opts));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(r.dir, r.branch));
         assert.match(io.text(), /M \.\.\/a\.txt/);
@@ -435,7 +452,7 @@ test('status: a path argument reports that repository', () => {
     try
     {
         const io = sink();
-        assert.equal(status([r.dir], io), 0);
+        assert.equal(status([r.dir], io, io.opts), 0);
         assert.match(io.text(), headerOf(r.dir, r.branch));
         assert.match(io.text(), /M a\.txt/);
     }
@@ -450,7 +467,7 @@ test('status: two paths give two reports, in the order given', () => {
     try
     {
         const forward = sink();
-        assert.equal(status([a.dir, b.dir], forward), 0);
+        assert.equal(status([a.dir, b.dir], forward, forward.opts), 0);
         assert.match(forward.text(), headerOf(a.dir, a.branch));
         assert.match(forward.text(), headerOf(b.dir, b.branch));
         assert.ok(
@@ -459,7 +476,7 @@ test('status: two paths give two reports, in the order given', () => {
         );
 
         const reverse = sink();
-        assert.equal(status([b.dir, a.dir], reverse), 0);
+        assert.equal(status([b.dir, a.dir], reverse, reverse.opts), 0);
         assert.ok(
             reverse.text().indexOf(b.dir) < reverse.text().indexOf(a.dir),
             'and reversing the arguments reverses the output',
@@ -476,7 +493,7 @@ test('status: a path argument replaces the current directory, it is not added to
     try
     {
         const io = sink();
-        const code = withCwd(a.dir, () => status([b.dir], io));
+        const code = withCwd(a.dir, () => status([b.dir], io, io.opts));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(b.dir, b.branch));
         assert.ok(!io.text().includes(a.dir), 'the shell directory is not reported');
@@ -492,7 +509,7 @@ test('status: relative paths resolve against the directory kit started in', () =
     try
     {
         const io = sink();
-        const code = withCwd(a.dir, () => status(['.', '../b'], io));
+        const code = withCwd(a.dir, () => status(['.', '../b'], io, io.opts));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(a.dir, a.branch), '. is this directory');
         assert.match(io.text(), headerOf(b.dir, b.branch), '../b is the sibling of a');
@@ -509,7 +526,7 @@ test('status: a relative path from a subdirectory climbs back out', () => {
     {
         mkdirSync(join(a.dir, 'sub'));
         const io = sink();
-        const code = withCwd(join(a.dir, 'sub'), () => status(['../../b'], io));
+        const code = withCwd(join(a.dir, 'sub'), () => status(['../../b'], io, io.opts));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(b.dir, b.branch));
     }
@@ -530,7 +547,7 @@ test('status: a clean repository in the list contributes nothing', () => {
         clean.git('commit', '-qm', 'init');
 
         const io = sink();
-        assert.equal(status([clean.dir, dirty.dir], io), 0);
+        assert.equal(status([clean.dir, dirty.dir], io, io.opts), 0);
         assert.match(io.text(), headerOf(dirty.dir, dirty.branch));
         assert.ok(!io.text().includes(clean.dir), 'the clean repository is not mentioned');
     }
@@ -546,7 +563,7 @@ test('status: a path that is not a repository is named, and the rest still repor
     try
     {
         const io = sink();
-        const code = status([r.dir, stranger], io);
+        const code = status([r.dir, stranger], io, io.opts);
         assert.equal(code, 128, 'git exits 128 for "not a repository"');
         assert.ok(io.err.join('\n').includes(stranger), 'and says which path it was');
         assert.match(io.err.join('\n'), /not a git repository/);
@@ -562,7 +579,7 @@ test('status: a path that is not a repository is named, and the rest still repor
 test('status: a path that does not exist is reported as such, not as a bad repo', () => {
     const missing = join(tmpdir(), 'kit-absent-42');
     const io = sink();
-    const code = status([missing], io);
+    const code = status([missing], io, io.opts);
     assert.equal(code, 128);
     assert.ok(io.err.join('\n').includes(missing));
     assert.match(io.err.join('\n'), /no such directory/);
@@ -582,7 +599,7 @@ test('status: a bare repository and a .git directory are not work trees', () => 
         for (const path of [bare, join(repo.dir, '.git')])
         {
             const io = sink();
-            assert.equal(status([path], io), 128, `${path} is not a work tree`);
+            assert.equal(status([path], io, io.opts), 128, `${path} is not a work tree`);
             assert.match(io.err.join('\n'), /no work tree/);
             assert.equal(io.text(), '');
         }
@@ -598,12 +615,12 @@ test('add and commit: the header names the repository root too', () => {
     try
     {
         const added = sink();
-        withCwd(r.dir, () => add([], added));
+        withCwd(r.dir, () => add([], added, added.opts));
         assert.match(added.text(), headerOf(r.dir, r.branch));
 
         writeFileSync(join(r.dir, 'b.txt'), 'b\n');
         const committed = sink();
-        withCwd(r.dir, () => commit(['msg'], committed));
+        withCwd(r.dir, () => commit(['msg'], committed, committed.opts));
         assert.match(committed.text(), headerOf(r.dir, r.branch));
         assert.match(committed.text(), headingOf('committed'));
     }
@@ -640,7 +657,7 @@ test('log: empty history is silent and exits 0', () => {
     {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         const io = sink();
-        const code = withCwd(r.dir, () => log([], io));
+        const code = withCwd(r.dir, () => log([], io, io.opts));
         assert.equal(code, 0);
         assert.equal(io.text(), '', 'a repo with no commits prints nothing');
     }
@@ -655,7 +672,7 @@ test('log: lists every commit, oldest first', () => {
     try
     {
         const io = sink();
-        withCwd(r.dir, () => log([], io));
+        withCwd(r.dir, () => log([], io, io.opts));
         const lines = io.text().split('\n');
         assert.equal(lines.length, 3);
         assert.match(lines[0], /commit 1$/, 'oldest first');
@@ -672,7 +689,7 @@ test('log: a bare number limits to that many commits', () => {
     try
     {
         const io = sink();
-        withCwd(r.dir, () => log(['2'], io));
+        withCwd(r.dir, () => log(['2'], io, io.opts));
         const lines = io.text().split('\n');
         assert.equal(lines.length, 2, 'a commit count, not a line count');
         // The count still selects the two *most recent* commits — reversing the
@@ -693,7 +710,7 @@ test('log: zero is silent', () => {
     try
     {
         const io = sink();
-        const code = withCwd(r.dir, () => log(['0'], io));
+        const code = withCwd(r.dir, () => log(['0'], io, io.opts));
         assert.equal(code, 0);
         assert.equal(io.text(), '');
     }
@@ -708,7 +725,7 @@ test('log: shows a short hash and never a full 40-character one', () => {
     try
     {
         const io = sink();
-        withCwd(r.dir, () => log([], io));
+        withCwd(r.dir, () => log([], io, io.opts));
         const line = io.text();
         const full = r.git('rev-parse', 'HEAD').trim();
         assert.ok(line.includes(full.slice(0, 7)), 'the short hash is present');
@@ -732,7 +749,7 @@ test('log: shows the author name without the email address', () => {
         });
 
         const io = sink();
-        withCwd(r.dir, () => log([], io));
+        withCwd(r.dir, () => log([], io, io.opts));
         const line = io.text();
         assert.match(line, /Thorsten/, 'the author name appears');
         assert.ok(!line.includes('t@e.st'), 'the email address does not');
@@ -755,7 +772,7 @@ test('log: date is the short absolute form without seconds', () => {
         });
 
         const io = sink();
-        withCwd(r.dir, () => log([], io));
+        withCwd(r.dir, () => log([], io, io.opts));
         const local = new Date('2020-01-02T03:04:05Z');
         const want = `Jan  ${local.getDate()} ${String(local.getHours()).padStart(2, '0')}:04`;
         assert.ok(io.text().includes(want), `date should read "${want}", got: ${io.text()}`);
@@ -773,7 +790,7 @@ test('log: a non-numeric argument errors instead of printing everything', () => 
     try
     {
         const io = sink();
-        const code = withCwd(r.dir, () => log(['foo'], io));
+        const code = withCwd(r.dir, () => log(['foo'], io, io.opts));
         assert.equal(code, 1);
         assert.equal(io.text(), '', 'no history is printed');
         assert.match(io.err.join('\n'), /not a commit count/);
@@ -795,12 +812,12 @@ test('log: -l shows the commit body, which short mode hides', () => {
         r.git('commit', '-q', '-F', 'msg.txt');
 
         const short = sink();
-        withCwd(r.dir, () => log([], short, { width: 200 }));
+        withCwd(r.dir, () => log([], short, { ...short.opts, width: 200 }));
         assert.match(short.text(), /the subject line/);
         assert.ok(!short.text().includes('A body paragraph'), 'short mode hides the body');
 
         const long = sink();
-        withCwd(r.dir, () => log(['-l'], long, { width: 200 }));
+        withCwd(r.dir, () => log(['-l'], long, { ...long.opts, width: 200 }));
         assert.match(long.text(), /A body paragraph/, '-l shows the body');
         assert.match(long.text(), /And a second one\./);
     }
@@ -816,8 +833,8 @@ test('log: -l and --long are equivalent', () => {
     {
         const a = sink();
         const b = sink();
-        withCwd(r.dir, () => log(['-l', '2'], a, { width: 100 }));
-        withCwd(r.dir, () => log(['--long', '2'], b, { width: 100 }));
+        withCwd(r.dir, () => log(['-l', '2'], a, { ...a.opts, width: 100 }));
+        withCwd(r.dir, () => log(['--long', '2'], b, { ...b.opts, width: 100 }));
         assert.equal(a.text(), b.text());
     }
     finally
@@ -831,7 +848,7 @@ test('log: -l with a count returns exactly that many commits', () => {
     try
     {
         const io = sink();
-        withCwd(r.dir, () => log(['-l', '2'], io, { width: 100 }));
+        withCwd(r.dir, () => log(['-l', '2'], io, { ...io.opts, width: 100 }));
         const hashes = io.text().match(/^[0-9a-f]{7} /gm) ?? [];
         assert.equal(hashes.length, 2, 'a commit count, not a line count');
     }
@@ -846,7 +863,7 @@ test('log: -l 0 is silent', () => {
     try
     {
         const io = sink();
-        const code = withCwd(r.dir, () => log(['-l', '0'], io, { width: 100 }));
+        const code = withCwd(r.dir, () => log(['-l', '0'], io, { ...io.opts, width: 100 }));
         assert.equal(code, 0);
         assert.equal(io.text(), '');
     }
@@ -861,7 +878,7 @@ test('log: output respects the terminal width it is given', () => {
     try
     {
         const io = sink();
-        withCwd(r.dir, () => log([], io, { width: 80 }));
+        withCwd(r.dir, () => log([], io, { ...io.opts, width: 80 }));
         const line = io.text().replace(/\u001b\[[0-9;]*m/g, '');
         assert.ok([...line].length <= 80, `line of ${[...line].length} must fit 80`);
     }
@@ -879,7 +896,7 @@ test('log: a subject with spaces and colons is preserved', () => {
         r.git('add', '-A');
         r.git('commit', '-qm', 'fix: handle empty tree and  spaces');
         const io = sink();
-        withCwd(r.dir, () => log([], io));
+        withCwd(r.dir, () => log([], io, io.opts));
         assert.match(io.text(), /fix: handle empty tree and {2}spaces$/);
     }
     finally

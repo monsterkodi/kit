@@ -15,6 +15,7 @@ import { status } from './lib/status.mjs';
 import { add } from './lib/add.mjs';
 import { commit } from './lib/commit.mjs';
 import { log } from './lib/log.mjs';
+import { createTheme } from './lib/theme.mjs';
 
 const USAGE = `kit — a git wrapper
 
@@ -29,21 +30,34 @@ const io = {
     error: (s) => process.stderr.write(s + '\n'),
 };
 
+/*
+  The one place the environment decides colour.
+
+  Colour is only wanted when something is going to look at it, so a pipe or a
+  redirected file gets plain text and a terminal gets the palette. Checking
+  isTTY here rather than in theme.mjs keeps the decision at the edge: everything
+  below receives a palette as an argument, and the test suite hands the renderers
+  a plain one directly instead of asking the environment for it.
+*/
+const theme = createTheme(
+    Boolean(process.stdout.isTTY) && !process.env.NO_COLOR && process.env.TERM !== 'dumb',
+);
+
 const [cmd, ...rest] = process.argv.slice(2);
 
 switch (cmd)
 {
     case 'status':
-        process.exit(status(rest, io));
+        process.exit(status(rest, io, { theme }));
         break;
     case 'add':
-        process.exit(add(rest, io));
+        process.exit(add(rest, io, { theme }));
         break;
     case 'commit':
-        process.exit(commit(rest, io));
+        process.exit(commit(rest, io, { theme }));
         break;
     case 'log':
-        process.exit(log(rest, io));
+        process.exit(log(rest, io, { theme }));
         break;
     case '--help':
     case '-h':

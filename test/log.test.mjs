@@ -10,6 +10,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLog } from '../lib/git.mjs';
 import { renderLog, fitName, NAME_WIDTH } from '../lib/render.mjs';
+import { createTheme } from '../lib/theme.mjs';
+import { plainTheme } from './style.mjs';
 
 /*
   One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
@@ -109,17 +111,17 @@ const commit = (over = {}) => ({
 });
 
 test('renderLog: one line per commit', () => {
-    const out = renderLog([commit(), commit({ hash: 'def5678', subject: 'another' })]);
+    const out = renderLog([commit(), commit({ hash: 'def5678', subject: 'another' })], { theme: plainTheme });
     assert.equal(out.split('\n').length, 2);
 });
 
 test('renderLog: empty history renders nothing', () => {
-    assert.equal(renderLog([]), '');
-    assert.equal(renderLog(null), '');
+    assert.equal(renderLog([], { theme: plainTheme }), '');
+    assert.equal(renderLog(null, { theme: plainTheme }), '');
 });
 
 test('renderLog: fields appear in order', () => {
-    const out = renderLog([commit()]);
+    const out = renderLog([commit()], { theme: plainTheme });
     assert.equal(out, 'abc1234 Oct  1 23:53 Thorsten a message');
 });
 
@@ -127,17 +129,27 @@ test('renderLog: subject column aligns across rows regardless of name length', (
     const out = renderLog([
         commit({ name: 'Thorsten', subject: 'long-ish subject' }),
         commit({ name: 'zoe', subject: 'x' }),
-    ]);
+    ], { theme: plainTheme });
     const positions = out.split('\n').map((l) => l.indexOf('x') >= 0 ? l.indexOf('x') : -1);
     const firstSubject = out.split('\n')[0].indexOf('long-ish subject');
     assert.equal(positions[1], firstSubject);
 });
 
 test('renderLog: colours each column differently', () => {
-    const out = renderLog([commit()]);
-    if (process.env.NO_COLOR) return; // colour assertions need colour enabled
-    const codes = out.match(/\u001b\[38;5;\d+m/g).map((s) => s.match(/\d+/)[0]);
+    // An enabled palette is passed in, so this asserts on colour unconditionally.
+    // It used to return early under NO_COLOR, which meant the only test pinning
+    // the palette never ran as part of `npm test`.
+    const out = renderLog([commit()], { theme: createTheme(true) });
+    // The colour code is the last number in the sequence: 38;5;245 is grey, and
+    // the 38 is the "set foreground" selector rather than part of the colour.
+    const codes = out.match(/\u001b\[38;5;\d+m/g).map((s) => s.match(/\d+(?=m$)/)[0]);
     assert.deepEqual(codes, ['245', '39', '41'], 'grey hash, blue date, green name');
+});
+
+test('renderLog: the same commit rendered plain has no escapes at all', () => {
+    const out = renderLog([commit()], { theme: createTheme(false) });
+    assert.doesNotMatch(out, /\u001b\[/, 'a plain palette emits nothing');
+    assert.match(out, /a message/, 'and the subject is still there');
 });
 
 test('renderLog: subject is never truncated or recoloured', () => {
