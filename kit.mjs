@@ -31,7 +31,8 @@ const io = {
 
 const [cmd, ...rest] = process.argv.slice(2);
 
-switch (cmd) {
+switch (cmd)
+{
     case 'status':
         process.exit(status(rest, io));
         break;

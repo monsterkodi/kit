@@ -298,7 +298,8 @@ test('renderStatus: entries sit under their heading, whatever the marker is', ()
     // Heading lines start at column 0; anything indented is an entry.
     const entries = plain(out).split('\n').filter((l) => /^\s+\S/.test(l));
     assert.equal(entries.length, 4, 'two staged, one unstaged, one untracked');
-    for (const line of entries) {
+    for (const line of entries)
+    {
         assert.ok(line.startsWith(indent), `"${line}" should be indented by ${wordColumn}`);
     }
 });

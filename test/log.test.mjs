@@ -59,7 +59,8 @@ test('parseLog: no newline leaks into the next record hash', () => {
     // splits only on NUL sees a leading newline on every hash after the first.
     const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'first')
         + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
-    for (const c of parseLog(raw)) {
+    for (const c of parseLog(raw))
+    {
         assert.ok(!c.hash.includes('\n'), 'hash must not contain a newline');
         assert.ok(!c.date.includes('\n'));
         assert.ok(!c.name.includes('\n'));

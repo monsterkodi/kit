@@ -65,7 +65,8 @@ test('a long subject is truncated to the width', () => {
 });
 
 test('output never exceeds the width when the budget allows', () => {
-    for (const w of [70, 80, 90, 100, 111, 120, 160, 190]) {
+    for (const w of [70, 80, 90, 100, 111, 120, 160, 190])
+    {
         const out = plain(renderLog([commit()], { width: w }));
         assert.ok(Math.max(...widths(out)) <= w, `width ${w} must not overflow`);
     }
@@ -85,7 +86,8 @@ test('below the minimum message width, the message is left long rather than mang
 });
 
 test('the narrow layout never overflows, even at absurd widths', () => {
-    for (const w of [30, 40, 50, 59]) {
+    for (const w of [30, 40, 50, 59])
+    {
         const out = plain(renderLog([commit()], { width: w }));
         assert.ok(Math.max(...widths(out)) <= w, `width ${w} must not overflow`);
     }
@@ -131,7 +133,8 @@ test('--long indents continuation lines under the subject column', () => {
     const out = plain(renderLog([commit()], { width: 80, long: true }));
     const lines = out.split('\n');
     assert.ok(lines.length > 1, 'the message wraps');
-    for (const l of lines.slice(1)) {
+    for (const l of lines.slice(1))
+    {
         assert.ok(l.startsWith(' '.repeat(PREFIX_WIDTH)), 'continuations align');
     }
     assert.ok(Math.max(...widths(out)) <= 80);
@@ -141,7 +144,8 @@ test('--long keeps a blank paragraph break, without trailing spaces on it', () =
     const body = 'subject\n\nfirst para\n\nsecond para';
     const out = plain(renderLog([commit({ subject: body, body })], { width: 80, long: true }));
     assert.ok(out.includes('\n\n'), 'the paragraph break survives');
-    for (const line of out.split('\n')) {
+    for (const line of out.split('\n'))
+    {
         assert.equal(line, line.replace(/\s+$/, ''), 'no trailing whitespace');
     }
 });
@@ -190,7 +194,8 @@ test('parseArgs: the flag and a count combine in either order', () => {
 });
 
 test('parseArgs: bad arguments are rejected, not silently ignored', () => {
-    for (const bad of [['foo'], ['-x'], ['1.5'], ['']]) {
+    for (const bad of [['foo'], ['-x'], ['1.5'], ['']])
+    {
         const r = parseArgs(bad);
         assert.equal(r.ok, false, `${JSON.stringify(bad)} rejected`);
         assert.match(r.message, /not a commit count/);
@@ -213,7 +218,8 @@ test('terminalWidth uses the stream width when it is a real terminal', () => {
 test('terminalWidth falls back when the value is unusable', () => {
     // Piped output, or a command substitution, gives undefined; 0 is seen in an
     // unsized pty. Both must fall back rather than produce a broken layout.
-    for (const bad of [undefined, null, 0, -1, NaN, '80']) {
+    for (const bad of [undefined, null, 0, -1, NaN, '80'])
+    {
         assert.equal(terminalWidth({ columns: bad }), DEFAULT_WIDTH, `${bad} falls back`);
     }
     assert.equal(DEFAULT_WIDTH, 80);

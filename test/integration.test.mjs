@@ -26,7 +26,8 @@ const KIT = fileURLToPath(new URL('../kit.mjs', import.meta.url));
 // Create an empty repo; returns its path. Passing a directory places the repo
 // there instead of in a fresh temp dir, which is how a test gets two
 // repositories as siblings of one another.
-function newRepo(where) {
+function newRepo(where)
+{
     const own = where === undefined;
     const dir = own ? mkdtempSync(join(tmpdir(), 'kit-test-')) : where;
     // git needs the directory to exist before it will init in it, and spawnSync
@@ -70,7 +71,8 @@ function newRepo(where) {
 }
 
 // Capturing output sink.
-function sink() {
+function sink()
+{
     const out = [];
     const err = [];
     return { out, err, log: (s) => out.push(s), error: (s) => err.push(s), text: () => out.join('\n') };
@@ -79,7 +81,14 @@ function sink() {
 const withCwd = (dir, fn) => {
     const prev = process.cwd();
     process.chdir(dir);
-    try { return fn(); } finally { process.chdir(prev); }
+    try
+    {
+        return fn();
+    }
+    finally
+    {
+        process.chdir(prev);
+    }
 };
 
 test('messageFor: joins words like the bash function did', () => {
@@ -95,19 +104,25 @@ test('messageFor: joins words like the bash function did', () => {
 
 test('status: clean repo is completely silent and exits 0', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
         const code = withCwd(r.dir, () => status([], io));
         assert.equal(code, 0);
         assert.equal(io.text(), '', 'clean repo must print nothing at all');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('status: dirty repo prints branch, sections and untracked dir collapsed', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
@@ -127,12 +142,17 @@ test('status: dirty repo prints branch, sections and untracked dir collapsed', (
         assert.match(io.text(), headingOf('untracked'));
         assert.match(io.text(), /\? build\//, 'untracked dir should collapse to one line');
         assert.doesNotMatch(io.text(), /build\/deep\/x\.txt/, 'nested file should not be listed');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('add: stages new files (the -A vs . behaviour) and reports them', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         // The file `git add -u` would silently skip.
@@ -143,12 +163,17 @@ test('add: stages new files (the -A vs . behaviour) and reports them', () => {
         const staged = r.git('diff', '--cached', '--name-only');
         assert.match(staged, /new\.txt/, 'git add . must stage a brand-new file');
         assert.match(io.text(), /A new\.txt/, 'add should report what it staged');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('add: explicit paths are forwarded', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         writeFileSync(join(r.dir, 'b.txt'), 'b\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
@@ -160,23 +185,33 @@ test('add: explicit paths are forwarded', () => {
         const staged = r.git('diff', '--cached', '--name-only');
         assert.match(staged, /a\.txt/);
         assert.doesNotMatch(staged, /b\.txt/, 'b.txt must remain unstaged');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('add: clean tree stays silent', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
         withCwd(r.dir, () => add([], io));
         assert.equal(io.text(), '');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: words become the message, new files included', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
@@ -188,24 +223,34 @@ test('commit: words become the message, new files included', () => {
         assert.equal(r.git('log', '-1', '--pretty=%s').trim(), 'fix the prompt');
         const files = r.git('show', '--name-only', '--pretty=format:', 'HEAD');
         assert.match(files, /brand\.txt/, 'commit must include the new file, unlike git add -u');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: no words uses the hardcoded "misc" message', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
         const io = sink();
         withCwd(r.dir, () => commit([], io));
         assert.equal(r.git('log', '-1', '--pretty=%s').trim(), 'misc');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('status: unaffected by the committed view — still says staged, uppercase', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
@@ -216,12 +261,17 @@ test('status: unaffected by the committed view — still says staged, uppercase'
         assert.match(out, headingOf('staged'), 'kit status keeps the staged heading');
         assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit status');
         assert.match(out, /M a\.txt/, 'letters stay uppercase');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('add: unaffected by the committed view — still says staged, uppercase', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
@@ -231,12 +281,17 @@ test('add: unaffected by the committed view — still says staged, uppercase', (
         assert.match(out, headingOf('staged'), 'kit add keeps the staged heading');
         assert.doesNotMatch(out, /committed/, 'the commit view must not leak into kit add');
         assert.match(out, /M a\.txt/, 'letters stay uppercase');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: shows the state it is about to commit, labelled committed', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         writeFileSync(join(r.dir, 'a.txt'), 'changed\n');
@@ -248,7 +303,11 @@ test('commit: shows the state it is about to commit, labelled committed', () => 
         assert.doesNotMatch(out, headingOf('staged'), 'the staged heading is relabelled in the commit view');
         assert.match(out, /a brand\.txt/, 'a new file reads as lowercase a');
         assert.match(out, /m a\.txt/, 'a modification reads as lowercase m');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
@@ -257,7 +316,8 @@ test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
     // under unstaged with an uppercase letter, next to the lowercased letters of
     // the committed section.
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         mkdirSync(join(r.dir, 'sub'), { recursive: true });
         writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'k\n');
@@ -273,7 +333,11 @@ test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
         assert.match(out, /m keep\.txt/, 'lowercase under committed');
         assert.match(out, headingOf('unstaged'), 'the unreachable change is not staged');
         assert.match(out, /M \.\.\/a\.txt/, 'uppercase under unstaged: still git status there');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: nothing to commit exits 1 and stays silent on a clean tree', () => {
@@ -282,7 +346,8 @@ test('commit: nothing to commit exits 1 and stays silent on a clean tree', () =>
     // a fully clean tree can produce a nothing-to-commit. Both the exit code and
     // the silence are asserted here; see the following test for the message path.
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
 
@@ -290,19 +355,28 @@ test('commit: nothing to commit exits 1 and stays silent on a clean tree', () =>
         const code = withCwd(r.dir, () => commit(['msg'], io));
         assert.equal(code, 1);
         assert.equal(io.text(), '', 'a clean tree produces no output at all');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: fully clean tree is silent', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         const io = sink();
         const code = withCwd(r.dir, () => commit(['msg'], io));
         assert.equal(code, 1);
         assert.equal(io.text(), '');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('commit: no-op from a subdirectory is silent, not git prose', () => {
@@ -311,7 +385,8 @@ test('commit: no-op from a subdirectory is silent, not git prose', () => {
     // though the status tree printed a moment earlier already listed them.
     // Nothing happened, so kit says nothing.
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
         // git cannot track an empty directory, so give sub/ a file.
@@ -326,12 +401,17 @@ test('commit: no-op from a subdirectory is silent, not git prose', () => {
         assert.equal(code, 1, 'git still reports nothing to commit');
         assert.doesNotMatch(io.text(), /nothing added to commit/);
         assert.doesNotMatch(io.text(), /untracked files present/);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('all commands: not a git repository exits 128', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kit-norepo-'));
-    try {
+    try
+    {
         // Each command has its own signature, so build a fresh sink per call and
         // invoke it the same way kit.mjs does.
         const cases = [
@@ -340,20 +420,26 @@ test('all commands: not a git repository exits 128', () => {
             ['commit', (io) => commit(['x'], io)],
             ['log', (io) => log([], io)],
         ];
-        for (const [name, invoke] of cases) {
+        for (const [name, invoke] of cases)
+        {
             const io = sink();
             const code = withCwd(dir, () => invoke(io));
             assert.equal(code, 128, `${name} should exit 128 outside a repository`);
             assert.match(io.err.join('\n'), /not a git repository/, `${name} should say why`);
         }
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 // --- kit status [path…] ---------------------------------------------------
 
 // A repo with one commit and one file changed: enough for a status render to
 // have something to say.
-function dirtyRepo(where) {
+function dirtyRepo(where)
+{
     const r = newRepo(where);
     writeFileSync(join(r.dir, 'a.txt'), 'a\n');
     r.git('add', '-A');
@@ -363,14 +449,16 @@ function dirtyRepo(where) {
 }
 
 // Two dirty repos side by side in one temp parent, cleaned up together.
-function twoSiblings() {
+function twoSiblings()
+{
     const parent = mkdtempSync(join(tmpdir(), 'kit-paths-'));
     return { parent, a: dirtyRepo(join(parent, 'a')), b: dirtyRepo(join(parent, 'b')) };
 }
 
 test('status: the header names the repository root, not the directory run in', () => {
     const r = dirtyRepo();
-    try {
+    try
+    {
         mkdirSync(join(r.dir, 'sub'));
         const io = sink();
         const code = withCwd(join(r.dir, 'sub'), () => status([], io));
@@ -379,22 +467,32 @@ test('status: the header names the repository root, not the directory run in', (
         assert.match(io.text(), headerOf(r.dir, r.branch));
         // The entries, on the other hand, are relative to where kit ran.
         assert.match(io.text(), /M \.\.\/a\.txt/);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('status: a path argument reports that repository', () => {
     const r = dirtyRepo();
-    try {
+    try
+    {
         const io = sink();
         assert.equal(status([r.dir], io), 0);
         assert.match(io.text(), headerOf(r.dir, r.branch));
         assert.match(io.text(), /M a\.txt/);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('status: two paths give two reports, in the order given', () => {
     const { parent, a, b } = twoSiblings();
-    try {
+    try
+    {
         const forward = sink();
         assert.equal(status([a.dir, b.dir], forward), 0);
         assert.match(forward.text(), headerOf(a.dir, a.branch));
@@ -410,20 +508,29 @@ test('status: two paths give two reports, in the order given', () => {
             reverse.text().indexOf(b.dir) < reverse.text().indexOf(a.dir),
             'and reversing the arguments reverses the output',
         );
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('status: a path argument replaces the current directory, it is not added to it', () => {
     // `ks ~/s/kit` from ~/a is about ~/s/kit. A dirty shell directory is
     // unmentioned — that is the entire reason for passing an argument.
     const { parent, a, b } = twoSiblings();
-    try {
+    try
+    {
         const io = sink();
         const code = withCwd(a.dir, () => status([b.dir], io));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(b.dir, b.branch));
         assert.ok(!io.text().includes(a.dir), 'the shell directory is not reported');
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('status: relative paths resolve against the directory kit started in', () => {
@@ -432,33 +539,44 @@ test('status: relative paths resolve against the directory kit started in', () =
     // against the first, or changed directory between the two, "../b" would come
     // out as a child of "." instead of its sibling.
     const { parent, a, b } = twoSiblings();
-    try {
+    try
+    {
         const io = sink();
         const code = withCwd(a.dir, () => status(['.', '../b'], io));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(a.dir, a.branch), '. is this directory');
         assert.match(io.text(), headerOf(b.dir, b.branch), '../b is the sibling of a');
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('status: a relative path from a subdirectory climbs back out', () => {
     // One level deeper, so the sibling is two "../" up. Same rule, one more step:
     // the subdirectory a command runs in must not shorten what a path means.
     const { parent, a, b } = twoSiblings();
-    try {
+    try
+    {
         mkdirSync(join(a.dir, 'sub'));
         const io = sink();
         const code = withCwd(join(a.dir, 'sub'), () => status(['../../b'], io));
         assert.equal(code, 0);
         assert.match(io.text(), headerOf(b.dir, b.branch));
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('status: a clean repository in the list contributes nothing', () => {
     // Silence is per repository: what the run reports is what needs attention, so
     // a clean neighbour of a dirty one does not appear at all.
     const parent = mkdtempSync(join(tmpdir(), 'kit-paths-'));
-    try {
+    try
+    {
         const dirty = dirtyRepo(join(parent, 'dirty'));
         const clean = newRepo(join(parent, 'clean'));
         writeFileSync(join(clean.dir, 'a.txt'), 'a\n');
@@ -469,20 +587,27 @@ test('status: a clean repository in the list contributes nothing', () => {
         assert.equal(status([clean.dir, dirty.dir], io), 0);
         assert.match(io.text(), headerOf(dirty.dir, dirty.branch));
         assert.ok(!io.text().includes(clean.dir), 'the clean repository is not mentioned');
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('status: a path that is not a repository is named, and the rest still report', () => {
     const r = dirtyRepo();
     const stranger = mkdtempSync(join(tmpdir(), 'kit-stranger-'));
-    try {
+    try
+    {
         const io = sink();
         const code = status([r.dir, stranger], io);
         assert.equal(code, 128, 'git exits 128 for "not a repository"');
         assert.ok(io.err.join('\n').includes(stranger), 'and says which path it was');
         assert.match(io.err.join('\n'), /not a git repository/);
         assert.match(io.text(), headerOf(r.dir, r.branch), 'one bad path does not lose the others');
-    } finally {
+    }
+    finally
+    {
         rmSync(stranger, { recursive: true, force: true });
         r.cleanup();
     }
@@ -504,25 +629,32 @@ test('status: a bare repository and a .git directory are not work trees', () => 
     // exit-code check would call them repositories and fail later with git's own
     // complaint. kit answers in its own words instead.
     const parent = mkdtempSync(join(tmpdir(), 'kit-bare-'));
-    try {
+    try
+    {
         const bare = join(parent, 'bare.git');
         mkdirSync(bare);
         execFileSync('git', ['init', '-q', '--bare', '.'], { cwd: bare, stdio: 'pipe' });
         const repo = newRepo(join(parent, 'repo'));
 
-        for (const path of [bare, join(repo.dir, '.git')]) {
+        for (const path of [bare, join(repo.dir, '.git')])
+        {
             const io = sink();
             assert.equal(status([path], io), 128, `${path} is not a work tree`);
             assert.match(io.err.join('\n'), /no work tree/);
             assert.equal(io.text(), '');
         }
-    } finally { rmSync(parent, { recursive: true, force: true }); }
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
 });
 
 test('add and commit: the header names the repository root too', () => {
     // One renderer, so the header cannot differ between the three commands.
     const r = dirtyRepo();
-    try {
+    try
+    {
         const added = sink();
         withCwd(r.dir, () => add([], added));
         assert.match(added.text(), headerOf(r.dir, r.branch));
@@ -532,7 +664,11 @@ test('add and commit: the header names the repository root too', () => {
         withCwd(r.dir, () => commit(['msg'], committed));
         assert.match(committed.text(), headerOf(r.dir, r.branch));
         assert.match(committed.text(), headingOf('committed'));
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('kit --help lists each subcommand with its arguments', () => {
@@ -548,9 +684,11 @@ test('kit --help lists each subcommand with its arguments', () => {
 // --- kit log -------------------------------------------------------------
 
 // A repo with `n` commits, oldest first, message "commit <i>".
-function repoWithCommits(n) {
+function repoWithCommits(n)
+{
     const r = newRepo();
-    for (let i = 1; i <= n; i++) {
+    for (let i = 1; i <= n; i++)
+    {
         writeFileSync(join(r.dir, `f${i}.txt`), `${i}\n`);
         r.git('add', '-A');
         r.git('commit', '-qm', `commit ${i}`);
@@ -560,30 +698,41 @@ function repoWithCommits(n) {
 
 test('log: empty history is silent and exits 0', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         const io = sink();
         const code = withCwd(r.dir, () => log([], io));
         assert.equal(code, 0);
         assert.equal(io.text(), '', 'a repo with no commits prints nothing');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: lists every commit, oldest first', () => {
     const r = repoWithCommits(3);
-    try {
+    try
+    {
         const io = sink();
         withCwd(r.dir, () => log([], io));
         const lines = io.text().split('\n');
         assert.equal(lines.length, 3);
         assert.match(lines[0], /commit 1$/, 'oldest first');
         assert.match(lines[2], /commit 3$/, 'newest last');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: a bare number limits to that many commits', () => {
     const r = repoWithCommits(5);
-    try {
+    try
+    {
         const io = sink();
         withCwd(r.dir, () => log(['2'], io));
         const lines = io.text().split('\n');
@@ -594,34 +743,49 @@ test('log: a bare number limits to that many commits', () => {
         assert.match(lines[0], /commit 4$/, 'the older of the two most recent');
         assert.match(lines[1], /commit 5$/, 'the newest is last');
         assert.ok(!lines.some((l) => /commit [123]$/.test(l)), 'nothing older is shown');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: zero is silent', () => {
     const r = repoWithCommits(3);
-    try {
+    try
+    {
         const io = sink();
         const code = withCwd(r.dir, () => log(['0'], io));
         assert.equal(code, 0);
         assert.equal(io.text(), '');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: shows a short hash and never a full 40-character one', () => {
     const r = repoWithCommits(1);
-    try {
+    try
+    {
         const io = sink();
         withCwd(r.dir, () => log([], io));
         const line = io.text();
         const full = r.git('rev-parse', 'HEAD').trim();
         assert.ok(line.includes(full.slice(0, 7)), 'the short hash is present');
         assert.ok(!line.includes(full), 'the full hash is not');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: shows the author name without the email address', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A');
         execFileSync('git', ['commit', '-qm', 'authored'], {
@@ -634,12 +798,17 @@ test('log: shows the author name without the email address', () => {
         const line = io.text();
         assert.match(line, /Thorsten/, 'the author name appears');
         assert.ok(!line.includes('t@e.st'), 'the email address does not');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: date is the short absolute form without seconds', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A');
         execFileSync('git', ['commit', '-qm', 'dated'], {
@@ -657,23 +826,33 @@ test('log: date is the short absolute form without seconds', () => {
         assert.ok(io.text().includes(want), `date should read "${want}", got: ${io.text()}`);
         assert.ok(!/03:04:\d\d/.test(io.text()), 'seconds are not shown');
         assert.ok(!/2020/.test(io.text()), 'the year is not shown');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: a non-numeric argument errors instead of printing everything', () => {
     const r = repoWithCommits(3);
-    try {
+    try
+    {
         const io = sink();
         const code = withCwd(r.dir, () => log(['foo'], io));
         assert.equal(code, 1);
         assert.equal(io.text(), '', 'no history is printed');
         assert.match(io.err.join('\n'), /not a commit count/);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: -l shows the commit body, which short mode hides', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A');
         writeFileSync(join(r.dir, 'msg.txt'),
@@ -689,58 +868,87 @@ test('log: -l shows the commit body, which short mode hides', () => {
         withCwd(r.dir, () => log(['-l'], long, { width: 200 }));
         assert.match(long.text(), /A body paragraph/, '-l shows the body');
         assert.match(long.text(), /And a second one\./);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: -l and --long are equivalent', () => {
     const r = repoWithCommits(2);
-    try {
+    try
+    {
         const a = sink();
         const b = sink();
         withCwd(r.dir, () => log(['-l', '2'], a, { width: 100 }));
         withCwd(r.dir, () => log(['--long', '2'], b, { width: 100 }));
         assert.equal(a.text(), b.text());
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: -l with a count returns exactly that many commits', () => {
     const r = repoWithCommits(5);
-    try {
+    try
+    {
         const io = sink();
         withCwd(r.dir, () => log(['-l', '2'], io, { width: 100 }));
         const hashes = io.text().match(/^[0-9a-f]{7} /gm) ?? [];
         assert.equal(hashes.length, 2, 'a commit count, not a line count');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: -l 0 is silent', () => {
     const r = repoWithCommits(3);
-    try {
+    try
+    {
         const io = sink();
         const code = withCwd(r.dir, () => log(['-l', '0'], io, { width: 100 }));
         assert.equal(code, 0);
         assert.equal(io.text(), '');
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: output respects the terminal width it is given', () => {
     const r = repoWithCommits(1);
-    try {
+    try
+    {
         const io = sink();
         withCwd(r.dir, () => log([], io, { width: 80 }));
         const line = io.text().replace(/\u001b\[[0-9;]*m/g, '');
         assert.ok([...line].length <= 80, `line of ${[...line].length} must fit 80`);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
 
 test('log: a subject with spaces and colons is preserved', () => {
     const r = newRepo();
-    try {
+    try
+    {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A');
         r.git('commit', '-qm', 'fix: handle empty tree and  spaces');
         const io = sink();
         withCwd(r.dir, () => log([], io));
         assert.match(io.text(), /fix: handle empty tree and {2}spaces$/);
-    } finally { r.cleanup(); }
+    }
+    finally
+    {
+        r.cleanup();
+    }
 });
