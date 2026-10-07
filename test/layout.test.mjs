@@ -27,11 +27,8 @@ const commit = (over = {}) => ({
     ...over,
 });
 
-// --- the prefix ----------------------------------------------------------
 
 test('PREFIX_WIDTH matches the real rendered prefix', () => {
-    // 7 hash + 1 + 12 date + 1 + 8 name + 1. The date is 12 because git's %e
-    // pads the day to two characters, which is a bug this constant once got wrong.
     assert.equal(PREFIX_WIDTH, 30);
     const line = plain(renderLog([commit({ subject: 'x' })], { width: 100 }));
     assert.equal(displayWidth(line), PREFIX_WIDTH + 1);
@@ -43,7 +40,6 @@ test('a short subject is left untouched', () => {
     assert.ok(!out.includes('…'));
 });
 
-// --- truncation ----------------------------------------------------------
 
 test('truncate: leaves short text alone and marks the cut otherwise', () => {
     assert.equal(truncate('short', 20), 'short');
@@ -73,13 +69,9 @@ test('output never exceeds the width when the budget allows', () => {
 });
 
 test('below the minimum message width, the message is left long rather than mangled', () => {
-    // Widths 60-69 leave fewer than MIN_MESSAGE_WIDTH columns for the message.
-    // The documented trade-off: a stub is worse than an overflow.
     assert.equal(NARROW_WIDTH, 60);
     assert.equal(MIN_MESSAGE_WIDTH, 40);
     const out = plain(renderLog([commit()], { width: 65 }));
-    // Below the floor the message is emitted whole and the terminal wraps it —
-    // deliberately over the width, because a 35-column stub is less use.
     assert.equal(Math.max(...widths(out)), PREFIX_WIDTH + LONG_SUBJECT.length);
     assert.ok(!out.includes('…'), 'no truncation below the floor');
     assert.ok(out.includes(LONG_SUBJECT), 'the whole message is present');
@@ -93,7 +85,6 @@ test('the narrow layout never overflows, even at absurd widths', () => {
     }
 });
 
-// --- narrow layout -------------------------------------------------------
 
 test('below NARROW_WIDTH the message goes on its own line', () => {
     const out = plain(renderLog([commit({ subject: 'a message here' })], { width: 50 }));
@@ -109,7 +100,6 @@ test('the narrow layout still truncates a long message', () => {
     assert.ok(Math.max(...widths(out)) <= 50);
 });
 
-// --- wrapping ------------------------------------------------------------
 
 test('wrap: breaks on spaces and respects the width', () => {
     const lines = wrap('the quick brown fox jumps over the lazy dog', 15);
@@ -158,7 +148,6 @@ test('--long shows more than the subject alone', () => {
     assert.ok(!short.includes('A body paragraph'), 'short mode shows the subject only');
 });
 
-// --- width measurement ---------------------------------------------------
 
 test('displayWidth counts an em-dash as one column, not two bytes', () => {
     assert.equal(displayWidth('a—b'), 3);
@@ -171,7 +160,6 @@ test('truncation accounts for multi-byte characters', () => {
     assert.equal(displayWidth(t), 6);
 });
 
-// --- argument parsing ----------------------------------------------------
 
 test('parseArgs: no arguments is short mode, whole history', () => {
     assert.deepEqual(parseArgs([]), { ok: true, count: null, long: false });
@@ -208,7 +196,6 @@ test('parseArgs: more than one count is an error', () => {
     assert.match(r.message, /at most one/);
 });
 
-// --- terminal width ------------------------------------------------------
 
 test('terminalWidth uses the stream width when it is a real terminal', () => {
     assert.equal(terminalWidth({ columns: 120 }), 120);
@@ -216,8 +203,6 @@ test('terminalWidth uses the stream width when it is a real terminal', () => {
 });
 
 test('terminalWidth falls back when the value is unusable', () => {
-    // Piped output, or a command substitution, gives undefined; 0 is seen in an
-    // unsized pty. Both must fall back rather than produce a broken layout.
     for (const bad of [undefined, null, 0, -1, NaN, '80'])
     {
         assert.equal(terminalWidth({ columns: bad }), DEFAULT_WIDTH, `${bad} falls back`);

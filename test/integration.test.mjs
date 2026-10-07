@@ -23,16 +23,10 @@ import { headerOf, headingOf } from './style.mjs';
 
 const KIT = fileURLToPath(new URL('../kit.mjs', import.meta.url));
 
-// Create an empty repo; returns its path. Passing a directory places the repo
-// there instead of in a fresh temp dir, which is how a test gets two
-// repositories as siblings of one another.
 function newRepo(where)
 {
     const own = where === undefined;
     const dir = own ? mkdtempSync(join(tmpdir(), 'kit-test-')) : where;
-    // git needs the directory to exist before it will init in it, and spawnSync
-    // reports a missing cwd as a bare ENOENT on "git" — which reads like git is
-    // not installed rather than like the path is wrong.
     if (!own) mkdirSync(dir, { recursive: true });
     // Identity must come from the environment, not -c flags: this machine has
     // GIT_AUTHOR_NAME/GIT_AUTHOR_EMAIL exported, and they take precedence over
@@ -53,24 +47,14 @@ function newRepo(where)
     // init.defaultBranch (this machine: main), and falls back to master when that
     // is unset. So the name is read back from the repo rather than assumed, and
     // tests assert against it — otherwise every branch-name assertion here breaks
-    // the day the user changes one global git setting.
-    //
-    // `symbolic-ref` rather than `config init.defaultBranch`: it reports the name
-    // git actually used, so it does not re-derive git's precedence rules (config
-    // first, then its own master fallback — GIT_DEFAULT_BRANCH does not apply
-    // here, verified on git 2.55). It also works before the first commit, where
-    // `rev-parse --abbrev-ref HEAD` fails on an unborn HEAD.
     const branch = git('symbolic-ref', '--short', 'HEAD').trim();
     assert.ok(branch, 'git init should leave a named branch to read back');
-    // Cleanup only removes a temp dir kit-test made for itself: a repo placed in a
-    // caller's directory belongs to the caller's cleanup.
     const cleanup = own
         ? () => rmSync(dir, { recursive: true, force: true })
         : () => {};
     return { dir, git, env, branch, cleanup };
 }
 
-// Capturing output sink.
 function sink()
 {
     const out = [];
@@ -93,9 +77,6 @@ const withCwd = (dir, fn) => {
 
 test('messageFor: joins words like the bash function did', () => {
     assert.equal(messageFor(['this', 'is', 'a', 'commit', 'message']), 'this is a commit message');
-    // Interior runs inside a single argv word survive, exactly as bash "$*" does:
-    // the shell splits on IFS, so extra spacing only vanishes when it arrives as
-    // separate words (which the shell has already done by the time argv is built).
     assert.equal(messageFor(['fix', '   the', '  thing']), 'fix    the   thing');
     assert.equal(messageFor([]), 'misc');
     assert.equal(messageFor(['']), 'misc');
@@ -132,12 +113,7 @@ test('status: dirty repo prints branch, sections and untracked dir collapsed', (
         const io = sink();
         const code = withCwd(r.dir, () => status([], io));
         assert.equal(code, 0);
-        // The header leads with the repository root, then the branch name git chose
-        // at init (a fresh repo has no upstream, so no tracking suffix is appended).
-        // Matched through headerOf, so the padding and colour around it can change;
-        // the root and the branch cannot.
         assert.match(io.text(), headerOf(r.dir, r.branch));
-        // Only unstaged and untracked are populated here, so unstaged is not last.
         assert.match(io.text(), headingOf('unstaged'));
         assert.match(io.text(), headingOf('untracked'));
         assert.match(io.text(), /\? build\//, 'untracked dir should collapse to one line');
@@ -155,7 +131,6 @@ test('add: stages new files (the -A vs . behaviour) and reports them', () => {
     {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
-        // The file `git add -u` would silently skip.
         writeFileSync(join(r.dir, 'new.txt'), 'n\n');
 
         const io = sink();
@@ -311,10 +286,6 @@ test('commit: shows the state it is about to commit, labelled committed', () => 
 });
 
 test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
-    // `git add .` inside kit commit stages everything reachable from the cwd.
-    // Run from sub/ so the top-level change cannot be staged: it then appears
-    // under unstaged with an uppercase letter, next to the lowercased letters of
-    // the committed section.
     const r = newRepo();
     try
     {
@@ -341,10 +312,6 @@ test('commit: from a subdirectory, unstaged keeps uppercase letters', () => {
 });
 
 test('commit: nothing to commit exits 1 and stays silent on a clean tree', () => {
-    // kit commit runs `git add .` first, which stages untracked files too, so an
-    // "untracked files present" failure is no longer reachable through kit — only
-    // a fully clean tree can produce a nothing-to-commit. Both the exit code and
-    // the silence are asserted here; see the following test for the message path.
     const r = newRepo();
     try
     {
@@ -383,17 +350,14 @@ test('commit: no-op from a subdirectory is silent, not git prose', () => {
     // Regression: `git add .` from a subdirectory cannot reach outside it, so
     // commit has nothing staged and git blames "untracked files present" — even
     // though the status tree printed a moment earlier already listed them.
-    // Nothing happened, so kit says nothing.
     const r = newRepo();
     try
     {
         writeFileSync(join(r.dir, 'a.txt'), 'a\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'init');
-        // git cannot track an empty directory, so give sub/ a file.
         mkdirSync(join(r.dir, 'sub'), { recursive: true });
         writeFileSync(join(r.dir, 'sub', 'keep.txt'), 'k\n');
         r.git('add', '-A'); r.git('commit', '-qm', 'add sub');
-        // An untracked file at the top level, invisible to `git add .` from sub/.
         writeFileSync(join(r.dir, 'scratch.tmp'), 'x\n');
 
         const io = sink();
@@ -412,8 +376,6 @@ test('all commands: not a git repository exits 128', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kit-norepo-'));
     try
     {
-        // Each command has its own signature, so build a fresh sink per call and
-        // invoke it the same way kit.mjs does.
         const cases = [
             ['status', (io) => status([], io)],
             ['add', (io) => add([], io)],
@@ -434,10 +396,7 @@ test('all commands: not a git repository exits 128', () => {
     }
 });
 
-// --- kit status [path…] ---------------------------------------------------
 
-// A repo with one commit and one file changed: enough for a status render to
-// have something to say.
 function dirtyRepo(where)
 {
     const r = newRepo(where);
@@ -448,7 +407,6 @@ function dirtyRepo(where)
     return r;
 }
 
-// Two dirty repos side by side in one temp parent, cleaned up together.
 function twoSiblings()
 {
     const parent = mkdtempSync(join(tmpdir(), 'kit-paths-'));
@@ -463,9 +421,7 @@ test('status: the header names the repository root, not the directory run in', (
         const io = sink();
         const code = withCwd(join(r.dir, 'sub'), () => status([], io));
         assert.equal(code, 0);
-        // Matched through headerOf, so this survives a restyle of the header.
         assert.match(io.text(), headerOf(r.dir, r.branch));
-        // The entries, on the other hand, are relative to where kit ran.
         assert.match(io.text(), /M \.\.\/a\.txt/);
     }
     finally
@@ -516,8 +472,6 @@ test('status: two paths give two reports, in the order given', () => {
 });
 
 test('status: a path argument replaces the current directory, it is not added to it', () => {
-    // `ks ~/s/kit` from ~/a is about ~/s/kit. A dirty shell directory is
-    // unmentioned — that is the entire reason for passing an argument.
     const { parent, a, b } = twoSiblings();
     try
     {
@@ -534,10 +488,6 @@ test('status: a path argument replaces the current directory, it is not added to
 });
 
 test('status: relative paths resolve against the directory kit started in', () => {
-    // `ks . ../config` must mean "here, and my sibling" — both relative to the
-    // shell's directory. The trap this guards: if kit resolved the second path
-    // against the first, or changed directory between the two, "../b" would come
-    // out as a child of "." instead of its sibling.
     const { parent, a, b } = twoSiblings();
     try
     {
@@ -554,8 +504,6 @@ test('status: relative paths resolve against the directory kit started in', () =
 });
 
 test('status: a relative path from a subdirectory climbs back out', () => {
-    // One level deeper, so the sibling is two "../" up. Same rule, one more step:
-    // the subdirectory a command runs in must not shorten what a path means.
     const { parent, a, b } = twoSiblings();
     try
     {
@@ -572,8 +520,6 @@ test('status: a relative path from a subdirectory climbs back out', () => {
 });
 
 test('status: a clean repository in the list contributes nothing', () => {
-    // Silence is per repository: what the run reports is what needs attention, so
-    // a clean neighbour of a dirty one does not appear at all.
     const parent = mkdtempSync(join(tmpdir(), 'kit-paths-'));
     try
     {
@@ -625,9 +571,6 @@ test('status: a path that does not exist is reported as such, not as a bad repo'
 });
 
 test('status: a bare repository and a .git directory are not work trees', () => {
-    // rev-parse --is-inside-work-tree exits 0 and prints "false" in both, so an
-    // exit-code check would call them repositories and fail later with git's own
-    // complaint. kit answers in its own words instead.
     const parent = mkdtempSync(join(tmpdir(), 'kit-bare-'));
     try
     {
@@ -651,7 +594,6 @@ test('status: a bare repository and a .git directory are not work trees', () => 
 });
 
 test('add and commit: the header names the repository root too', () => {
-    // One renderer, so the header cannot differ between the three commands.
     const r = dirtyRepo();
     try
     {
@@ -672,8 +614,6 @@ test('add and commit: the header names the repository root too', () => {
 });
 
 test('kit --help lists each subcommand with its arguments', () => {
-    // The header a new command is documented by, pinned once so a rename cannot
-    // leave the usage text behind.
     const out = execFileSync(process.execPath, [KIT, '--help'], { encoding: 'utf8' });
     assert.match(out, /^ {2}kit status \[path…] {2,}report the working tree/m);
     assert.match(out, /^ {2}kit add \[path…] {2,}stage changes/m);
@@ -681,9 +621,7 @@ test('kit --help lists each subcommand with its arguments', () => {
     assert.match(out, /^ {2}kit log \[n] {2,}one line per commit/m);
 });
 
-// --- kit log -------------------------------------------------------------
 
-// A repo with `n` commits, oldest first, message "commit <i>".
 function repoWithCommits(n)
 {
     const r = newRepo();
@@ -813,9 +751,6 @@ test('log: date is the short absolute form without seconds', () => {
         r.git('add', '-A');
         execFileSync('git', ['commit', '-qm', 'dated'], {
             cwd: r.dir, encoding: 'utf8',
-            // format-local renders in the machine's timezone, so the fixture
-            // carries an explicit +0000 offset and the assertion derives the
-            // expected local time rather than assuming UTC.
             env: { ...r.env, GIT_AUTHOR_DATE: '2020-01-02T03:04:05 +0000' },
         });
 

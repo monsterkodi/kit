@@ -55,8 +55,6 @@ test('parseLog: unicode author and subject survive', () => {
 });
 
 test('parseLog: no newline leaks into the next record hash', () => {
-    // The bug this guards: git writes "\0\n" between records, so a parser that
-    // splits only on NUL sees a leading newline on every hash after the first.
     const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'first')
         + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
     for (const c of parseLog(raw))
@@ -68,8 +66,6 @@ test('parseLog: no newline leaks into the next record hash', () => {
 });
 
 test('parseLog: a multi-line %B body stays with its own record', () => {
-    // The reason the leading %x00 exists: %B spans lines, so a line-based
-    // split would shred it. Verified against a repo with multi-paragraph bodies.
     const body = 'subject\n\nbody para one\nbody para one b\n\npara two';
     const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
         + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
@@ -80,8 +76,6 @@ test('parseLog: a multi-line %B body stays with its own record', () => {
 });
 
 test('parseLog: a body containing a record separator does not break parsing', () => {
-    // \x1e is stored by git (unlike NUL), so it must not be treated as a
-    // delimiter. Verified: git rejects NUL but accepts \x1e.
     const body = 'subject\n\nbody with \x1e inside';
     const raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
         + record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second');
@@ -90,7 +84,6 @@ test('parseLog: a body containing a record separator does not break parsing', ()
     assert.ok(out[0].subject.includes('\x1e'));
 });
 
-// --- fitName -------------------------------------------------------------
 
 test('fitName: pads to exactly 8 characters', () => {
     assert.equal(NAME_WIDTH, 8);
@@ -110,7 +103,6 @@ test('fitName: handles empty and missing names', () => {
     assert.equal(fitName(undefined), '        ');
 });
 
-// --- renderLog -----------------------------------------------------------
 
 const commit = (over = {}) => ({
     hash: 'abc1234', date: 'Oct  1 23:53', name: 'Thorsten', subject: 'a message', ...over,
@@ -137,7 +129,6 @@ test('renderLog: subject column aligns across rows regardless of name length', (
         commit({ name: 'zoe', subject: 'x' }),
     ]);
     const positions = out.split('\n').map((l) => l.indexOf('x') >= 0 ? l.indexOf('x') : -1);
-    // The second row's subject starts where the first row's subject column does.
     const firstSubject = out.split('\n')[0].indexOf('long-ish subject');
     assert.equal(positions[1], firstSubject);
 });
@@ -151,7 +142,6 @@ test('renderLog: colours each column differently', () => {
 
 test('renderLog: subject is never truncated or recoloured', () => {
     const subject = 'fix: a long subject line that should be left completely alone';
-    // Wide enough that no truncation applies, and NO_COLOR keeps the line plain.
     const out = renderLog([commit({ subject })], { width: 200 });
     assert.ok(out.endsWith(subject), 'subject reaches the end of the line verbatim');
 });

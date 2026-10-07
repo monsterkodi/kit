@@ -25,16 +25,10 @@
 */
 export const plain = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 
-// Whitespace, punctuation and symbols: any padding or separator the header may
-// grow. \p{S} is what lets a box-drawing marker ("─", "│") or a bullet match.
 const FILLER = '[\\s\\p{P}\\p{S}]*';
 
-// At least one of them, so a root and a branch cannot run together into a single
-// token and pass as two.
 const GAP = '[\\s\\p{P}\\p{S}]+';
 
-// The path goes into the pattern literally: "/", "." and "+" are all regex
-// metacharacters, and "~" would mean something unintended if passed through raw.
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
 /*

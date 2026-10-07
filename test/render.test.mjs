@@ -33,13 +33,10 @@ test('parseStatusV2: headers, staged/unstaged split', () => {
     assert.equal(d.behind, 1);
     assert.deepEqual(d.staged, [{ path: 'src/a.mjs', code: 'M' }]);
     assert.deepEqual(d.unstaged, [{ path: 'src/b.mjs', code: 'M' }]);
-    // Untracked entries are objects like the other groups, so the renderer can
-    // destructure {path, code} uniformly.
     assert.deepEqual(d.untracked, [{ path: 'build/', code: '?' }]);
 });
 
 test('parseStatusV2: rename consumes the origin path record', () => {
-    // Verified real shape: "2 RM … R100 <new>\0<old>\0"
     const raw = [
         '2 RM N... 100644 100644 100644 aaa bbb R100 renamed.txt',
         'a b.txt',
@@ -90,7 +87,6 @@ test('renderStatus: empty sections are omitted and the last group closes the lis
         branch: 'main', staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
     const heads = headingLines(renderStatus(d));
-    // "staged" alone would also match "unstaged", so ask about the heading lines.
     assert.doesNotMatch(heads.join('\n'), headingOf('staged'), 'an empty group is not rendered');
     assert.equal(heads.length, 1, 'only the one non-empty group renders');
     assert.match(heads[0], headingOf('unstaged'), 'the only group is also the last');
@@ -118,8 +114,6 @@ test('renderStatus: the header names the repository root, then the branch', () =
 });
 
 test('renderStatus: the root identifies the repository, not the directory kit ran in', () => {
-    // Run from a subdirectory: the header names the repository the user is in, and
-    // the entries below stay relative to where the command actually ran.
     const d = {
         root: '/home/kodi/a', branch: 'master',
         staged: [], unstaged: [{ path: '../top.txt', code: 'M' }], untracked: [],
@@ -162,8 +156,6 @@ test('renderStatus: a root that merely starts with home is not shortened', () =>
 });
 
 test('renderStatus: without a root the header is the branch alone', () => {
-    // A partial header beats a wrong one, so nothing is invented when there is no
-    // root to show.
     const d = { branch: 'main', staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [] };
     assert.equal(plain(renderStatus(d, { home: '/home/kodi' })).split('\n')[0], 'main');
 });
@@ -199,7 +191,6 @@ test('renderTracking: in-sync renders empty', () => {
   skipping the heading. Uppercase is kept everywhere else.
 */
 
-// A tree with entries in all three groups, for the committed-view tests.
 const mixedTree = () => ({
     branch: 'main', ahead: 0, behind: 0, detached: false,
     staged: [{ path: 'lib/add.mjs', code: 'A' }, { path: 'README.md', code: 'M' }],
@@ -223,10 +214,8 @@ test('renderStatus: default view still says staged', () => {
 
 test('renderStatus: committed view lowercases letters in that section only', () => {
     const out = renderStatus(mixedTree(), { committed: true });
-    // Inside the committed block: lowercase.
     assert.match(out, /a lib\/add\.mjs/);
     assert.match(out, /m README\.md/);
-    // Unstaged keeps uppercase, because there it still means git status.
     assert.match(out, /M \.\.\/kit\.md/);
 });
 
@@ -264,16 +253,12 @@ test('renderStatus: committed view on a clean tree still renders nothing', () =>
 });
 
 test('renderStatus: the heading column stays aligned across the groups', () => {
-    // "committed" and "untracked" are both 9 characters, so padding is unaffected.
     const heads = headingLines(renderStatus(mixedTree(), { committed: true }));
     assert.equal(heads.length, 3);
     assert.equal(new Set(heads.map((l) => displayWidth(plain(l)))).size, 1, 'all three headings same width');
 });
 
 test('renderStatus: every group carries a marker, and all of one width', () => {
-    // The marker's shape is style and is deliberately not named, but it has to
-    // exist and be consistent: the entries below are aligned to it, so two groups
-    // with differently wide markers would misalign the whole tree.
     const heads = headingLines(renderStatus(mixedTree()));
     assert.equal(heads.length, 3);
     const offsets = new Set(heads.map((l) => {
@@ -281,7 +266,6 @@ test('renderStatus: every group carries a marker, and all of one width', () => {
         return displayWidth(plain(l).trimEnd()) - displayWidth(word);
     }));
     assert.equal(offsets.size, 1, 'every group marker is the same width');
-    // At least a marker and the space after it, or the word would sit at column 0.
     assert.ok([...offsets][0] >= 2, 'and it displaces at least a marker and a space');
 });
 
@@ -289,13 +273,8 @@ test('renderStatus: entries sit under their heading, whatever the marker is', ()
     const out = renderStatus(mixedTree());
     const head = headingLines(out)[0];
     const word = head.trim().split(/\s+/).pop();
-    // The heading is marker, space, word: so the difference in width *is* the
-    // column the word starts at, and that is where the entries have to line up.
-    // Deriving it keeps this test alive across a change of marker, and makes a
-    // two-column glyph fail here rather than silently misaligning the entries.
     const wordColumn = displayWidth(plain(head).trimEnd()) - displayWidth(word);
     const indent = ' '.repeat(wordColumn);
-    // Heading lines start at column 0; anything indented is an entry.
     const entries = plain(out).split('\n').filter((l) => /^\s+\S/.test(l));
     assert.equal(entries.length, 4, 'two staged, one unstaged, one untracked');
     for (const line of entries)
