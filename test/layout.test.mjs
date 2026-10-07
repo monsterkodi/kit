@@ -30,8 +30,8 @@ const commit = (over = {}) => ({
 // --- the prefix ----------------------------------------------------------
 
 test('PREFIX_WIDTH matches the real rendered prefix', () => {
-  // 7 hash + 1 + 12 date + 1 + 8 name + 1. The date is 12 because git's %e
-  // pads the day to two characters, which is a bug this constant once got wrong.
+    // 7 hash + 1 + 12 date + 1 + 8 name + 1. The date is 12 because git's %e
+    // pads the day to two characters, which is a bug this constant once got wrong.
     assert.equal(PREFIX_WIDTH, 30);
     const line = plain(renderLog([commit({ subject: 'x' })], { width: 100 }));
     assert.equal(displayWidth(line), PREFIX_WIDTH + 1);
@@ -72,13 +72,13 @@ test('output never exceeds the width when the budget allows', () => {
 });
 
 test('below the minimum message width, the message is left long rather than mangled', () => {
-  // Widths 60-69 leave fewer than MIN_MESSAGE_WIDTH columns for the message.
-  // The documented trade-off: a stub is worse than an overflow.
+    // Widths 60-69 leave fewer than MIN_MESSAGE_WIDTH columns for the message.
+    // The documented trade-off: a stub is worse than an overflow.
     assert.equal(NARROW_WIDTH, 60);
     assert.equal(MIN_MESSAGE_WIDTH, 40);
     const out = plain(renderLog([commit()], { width: 65 }));
-  // Below the floor the message is emitted whole and the terminal wraps it —
-  // deliberately over the width, because a 35-column stub is less use.
+    // Below the floor the message is emitted whole and the terminal wraps it —
+    // deliberately over the width, because a 35-column stub is less use.
     assert.equal(Math.max(...widths(out)), PREFIX_WIDTH + LONG_SUBJECT.length);
     assert.ok(!out.includes('…'), 'no truncation below the floor');
     assert.ok(out.includes(LONG_SUBJECT), 'the whole message is present');
@@ -211,8 +211,8 @@ test('terminalWidth uses the stream width when it is a real terminal', () => {
 });
 
 test('terminalWidth falls back when the value is unusable', () => {
-  // Piped output, or a command substitution, gives undefined; 0 is seen in an
-  // unsized pty. Both must fall back rather than produce a broken layout.
+    // Piped output, or a command substitution, gives undefined; 0 is seen in an
+    // unsized pty. Both must fall back rather than produce a broken layout.
     for (const bad of [undefined, null, 0, -1, NaN, '80']) {
         assert.equal(terminalWidth({ columns: bad }), DEFAULT_WIDTH, `${bad} falls back`);
     }
