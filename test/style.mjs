@@ -45,7 +45,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
   the wrong order, or anything else sharing the line.
 */
 export const headerOf = (root, branch) =>
-  new RegExp(`^${FILLER}${escape(root)}${GAP}${escape(branch)}$`, 'mu');
+    new RegExp(`^${FILLER}${escape(root)}${GAP}${escape(branch)}$`, 'mu');
 
 /*
   A group heading: a marker, then the word. Takes a pattern rather than a word,
@@ -60,4 +60,4 @@ export const headerOf = (root, branch) =>
 export const headingOf = (words) => new RegExp(`^\\S+ (?:${words})\\s*$`, 'm');
 
 export const headingLines = (out) =>
-  plain(out).split('\n').filter((l) => headingOf('committed|staged|unstaged|untracked').test(l));
+    plain(out).split('\n').filter((l) => headingOf('committed|staged|unstaged|untracked').test(l));

@@ -25,35 +25,35 @@ const USAGE = `kit — a git wrapper
 `;
 
 const io = {
-  log: (s) => process.stdout.write(s + '\n'),
-  error: (s) => process.stderr.write(s + '\n'),
+    log: (s) => process.stdout.write(s + '\n'),
+    error: (s) => process.stderr.write(s + '\n'),
 };
 
 const [cmd, ...rest] = process.argv.slice(2);
 
 switch (cmd) {
-  case 'status':
-    process.exit(status(rest, io));
-    break;
-  case 'add':
-    process.exit(add(rest, io));
-    break;
-  case 'commit':
-    process.exit(commit(rest, io));
-    break;
-  case 'log':
-    process.exit(log(rest, io));
-    break;
-  case '--help':
-  case '-h':
-  case 'help':
-  case undefined:
-    process.stdout.write(USAGE);
-    process.exit(cmd === undefined ? 1 : 0);
-    break;
-  default:
-    io.error(`kit: unknown command '${cmd}'`);
-    io.error('');
-    process.stderr.write(USAGE);
-    process.exit(1);
+    case 'status':
+        process.exit(status(rest, io));
+        break;
+    case 'add':
+        process.exit(add(rest, io));
+        break;
+    case 'commit':
+        process.exit(commit(rest, io));
+        break;
+    case 'log':
+        process.exit(log(rest, io));
+        break;
+    case '--help':
+    case '-h':
+    case 'help':
+    case undefined:
+        process.stdout.write(USAGE);
+        process.exit(cmd === undefined ? 1 : 0);
+        break;
+    default:
+        io.error(`kit: unknown command '${cmd}'`);
+        io.error('');
+        process.stderr.write(USAGE);
+        process.exit(1);
 }
