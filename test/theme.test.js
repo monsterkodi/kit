@@ -1,7 +1,7 @@
 /*
-  theme.test.mjs — the colour palette as a value rather than as ambient state.
+  theme.test.js — the colour palette as a value rather than as ambient state.
 
-  Colour used to be decided once, when theme.mjs was first imported, by reading
+  Colour used to be decided once, when theme.js was first imported, by reading
   NO_COLOR out of the environment. That made the environment the only switch, so
   the test suite had to run under NO_COLOR=1 to get readable assertions — and
   that also stripped colour from node's own test runner, which reports colour
@@ -17,9 +17,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createTheme, theme } from '../lib/theme.mjs';
-import { renderStatus, renderLog, renderEntry, renderCommitSuccess } from '../lib/render.mjs';
-import { parseStatusV2 } from '../lib/git.mjs';
+import { createTheme, theme } from '../lib/theme.js';
+import { renderStatus, renderLog, renderEntry, renderCommitSuccess } from '../lib/render.js';
+import { parseStatusV2 } from '../lib/git.js';
 
 /*
   Global, so stripping removes every sequence rather than the first: a single

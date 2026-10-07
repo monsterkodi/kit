@@ -1,5 +1,5 @@
 /*
-  style.mjs — assertions that survive a restyle, and the plain palette they run with.
+  style.js — assertions that survive a restyle, and the plain palette they run with.
 
   Two parts of kit's output are decoration-heavy and therefore likely to be
   redesigned: the branch header (repository root, then branch) and the marker in
@@ -16,7 +16,7 @@
   would put the style back into the tests one file at a time.
 */
 
-import { createTheme } from '../lib/theme.mjs';
+import { createTheme } from '../lib/theme.js';
 
 /*
   Strip SGR escape sequences.

@@ -1,5 +1,5 @@
 /*
-  relativise.test.mjs
+  relativise.test.js
 
   tests cwd-relative path handling.
 
@@ -10,7 +10,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { relativeTo, parseStatusV2, relativise } from '../lib/git.mjs';
+import { relativeTo, parseStatusV2, relativise } from '../lib/git.js';
 
 const NUL = '\0';
 

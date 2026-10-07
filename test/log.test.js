@@ -1,5 +1,5 @@
 /*
-  log.test.mjs — `kit log` parsing and rendering.
+  log.test.js — `kit log` parsing and rendering.
 
   parseLog is tested against the exact byte shape git produces (verified with
   od -c), because the record separator is the one thing here that surprised
@@ -8,10 +8,10 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLog } from '../lib/git.mjs';
-import { renderLog, fitName, NAME_WIDTH } from '../lib/render.mjs';
-import { createTheme } from '../lib/theme.mjs';
-import { plainTheme } from './style.mjs';
+import { parseLog } from '../lib/git.js';
+import { renderLog, fitName, NAME_WIDTH } from '../lib/render.js';
+import { createTheme } from '../lib/theme.js';
+import { plainTheme } from './style.js';
 
 /*
   One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const KIT = fileURLToPath(new URL('../kit.mjs', import.meta.url));
+const KIT = fileURLToPath(new URL('../kit.js', import.meta.url));
 const SGR = /\u001b\[[0-9;]*m/;
 
 function kit(args, env = {})
@@ -60,12 +60,12 @@ test('kit status: a clean tree stays silent regardless of colour', () => {
 });
 
 test('every subcommand still runs with the palette threaded through', async () => {
-    // The commands are invoked here exactly as kit.mjs invokes them, with a
+    // The commands are invoked here exactly as kit.js invokes them, with a
     // palette argument, so a signature change that dropped the argument would
     // show up as a crash rather than as silently uncoloured output.
-    const { status } = await import('../lib/status.mjs');
-    const { log } = await import('../lib/log.mjs');
-    const { createTheme } = await import('../lib/theme.mjs');
+    const { status } = await import('../lib/status.js');
+    const { log } = await import('../lib/log.js');
+    const { createTheme } = await import('../lib/theme.js');
 
     const theme = createTheme(true);
 

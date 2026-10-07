@@ -1,5 +1,5 @@
 /*
-  integration.test.mjs
+  integration.test.js
 
   tests command modules against real throwaway repositories.
 
@@ -15,13 +15,13 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { status } from '../lib/status.mjs';
-import { add } from '../lib/add.mjs';
-import { commit, messageFor } from '../lib/commit.mjs';
-import { log } from '../lib/log.mjs';
-import { headerOf, headingOf, plainTheme } from './style.mjs';
+import { status } from '../lib/status.js';
+import { add } from '../lib/add.js';
+import { commit, messageFor } from '../lib/commit.js';
+import { log } from '../lib/log.js';
+import { headerOf, headingOf, plainTheme } from './style.js';
 
-const KIT = fileURLToPath(new URL('../kit.mjs', import.meta.url));
+const KIT = fileURLToPath(new URL('../kit.js', import.meta.url));
 
 function newRepo(where)
 {

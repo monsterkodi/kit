@@ -1,5 +1,5 @@
 /*
-  layout.test.mjs — `kit log` width handling and the --long layout.
+  layout.test.js — `kit log` width handling and the --long layout.
 
   All pure: renderLog takes the width as data, so no TTY and no git are needed.
 */
@@ -9,8 +9,8 @@ import assert from 'node:assert/strict';
 import {
     renderLog, truncate, wrap, displayWidth, fitName,
     PREFIX_WIDTH, NARROW_WIDTH, MIN_MESSAGE_WIDTH, DEFAULT_WIDTH,
-} from '../lib/render.mjs';
-import { parseArgs, terminalWidth } from '../lib/log.mjs';
+} from '../lib/render.js';
+import { parseArgs, terminalWidth } from '../lib/log.js';
 
 const plain = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 const widths = (s) => plain(s).split('\n').map((l) => displayWidth(l));

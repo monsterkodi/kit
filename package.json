@@ -4,7 +4,7 @@
   "description": "A git wrapper: status, add, commit with cleaner output",
   "type": "module",
   "private": true,
-  "bin": { "kit": "./kit.mjs" },
+  "bin": { "kit": "./kit.js" },
   "scripts": { "test": "FORCE_COLOR=1 node --test test/" },
   "engines": { "node": ">=20" }
 }

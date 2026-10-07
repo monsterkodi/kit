@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
-  kit.mjs
+  kit.js
 
     kit status [path…]       report the working tree; silent when clean
     kit add [path…]          stage changes, then show what was staged
@@ -11,11 +11,11 @@
   through to raw git. Anything kit does not cover is better served by git.
 */
 
-import { status } from './lib/status.mjs';
-import { add } from './lib/add.mjs';
-import { commit } from './lib/commit.mjs';
-import { log } from './lib/log.mjs';
-import { createTheme } from './lib/theme.mjs';
+import { status } from './lib/status.js';
+import { add } from './lib/add.js';
+import { commit } from './lib/commit.js';
+import { log } from './lib/log.js';
+import { createTheme } from './lib/theme.js';
 
 const USAGE = `kit — a git wrapper
 
@@ -35,7 +35,7 @@ const io = {
 
   Colour is only wanted when something is going to look at it, so a pipe or a
   redirected file gets plain text and a terminal gets the palette. Checking
-  isTTY here rather than in theme.mjs keeps the decision at the edge: everything
+  isTTY here rather than in theme.js keeps the decision at the edge: everything
   below receives a palette as an argument, and the test suite hands the renderers
   a plain one directly instead of asking the environment for it.
 */

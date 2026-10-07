@@ -1,5 +1,5 @@
 /*
-  render.test.mjs — unit tests for the pure renderers.
+  render.test.js — unit tests for the pure renderers.
 
   No git, no repository, no child processes: these assert layout and colour
   decisions directly. Run with NO_COLOR=1 so assertions stay readable.
@@ -7,11 +7,11 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseStatusV2 } from '../lib/git.mjs';
+import { parseStatusV2 } from '../lib/git.js';
 import {
     renderStatus, renderBranch, renderCommitSuccess, renderCommitFailure, renderTracking,
     abbreviateHome, displayWidth,
-} from '../lib/render.mjs';
+} from '../lib/render.js';
 
 const NUL = '\0';
 
@@ -54,11 +54,11 @@ test('parseStatusV2: filename with a space is one path', () => {
 });
 
 /*
-  Style-tolerant assertions live in ./style.mjs: the branch header and the group
+  Style-tolerant assertions live in ./style.js: the branch header and the group
   markers are the two parts of kit's output that get restyled, so the tests
   below pin what they mean and leave how they look open.
 */
-import { plain, plainTheme, headerOf, headingOf, headingLines } from './style.mjs';
+import { plain, plainTheme, headerOf, headingOf, headingLines } from './style.js';
 
 test('renderStatus: clean tree renders nothing', () => {
     const d = { branch: 'main', staged: [], unstaged: [], untracked: [] };
