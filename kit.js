@@ -15,7 +15,7 @@ const USAGE = `kit — a git wrapper
                           a directory that is not a repository is looked into one level down.
   kit add [path…]         stage changes, then show what was staged.
   kit commit [words…]     stage, then commit using the words as the message.
-  kit log [n]             one line per commit, optionally the n most recent.
+  kit log [n] [-l]        one line per commit, -l the full message, n the count.
 `;
 
 const io = {

@@ -937,7 +937,7 @@ test('kit --help lists each subcommand with its arguments', () => {
     assert.match(out, /^ {2}kit status \[path…] {2,}report the working tree/m);
     assert.match(out, /^ {2}kit add \[path…] {2,}stage changes/m);
     assert.match(out, /^ {2}kit commit \[words…] {2,}stage, then commit/m);
-    assert.match(out, /^ {2}kit log \[n] {2,}one line per commit/m);
+    assert.match(out, /^ {2}kit log \[n] \[-l] {2,}one line per commit/m);
 });
 
 
