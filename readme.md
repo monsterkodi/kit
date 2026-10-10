@@ -8,9 +8,9 @@ step.
     kit commit [words...]     stage, then commit using the words as the message
     kit log [n] [-l]          one line per commit, optionally the full message
 
-![kit status reporting every repository below ~/s](img/status.png)
+![kit status](img/status.png)
 
-![kit log -l, full commit messages wrapped under the subject](img/log.png)
+![kit log -l](img/log.png)
 
 ## Notes
 
