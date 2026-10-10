@@ -4,7 +4,7 @@
   "description": "A git wrapper: status, add, commit and log with cleaner output",
   "type": "module",
   "license": "Unlicense",
-  "bin": { "kit": "./kit.js" },
+  "bin": { "kit": "./kit" },
   "scripts": { "test": "node --test test/" },
   "engines": { "node": ">=20" }
 }
