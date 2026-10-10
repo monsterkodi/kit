@@ -2,7 +2,7 @@
 /*
   kit.js
 
-    kit status [path…]       report the working tree; silent when clean
+    kit status [path…]       report the working tree; silent when clean and in sync
     kit add [path…]          stage changes, then show what was staged
     kit commit [words…]      stage, then commit with the words as the message
     kit log [n]              one line per commit, optionally the n most recent
@@ -19,7 +19,7 @@ import { createTheme } from './lib/theme.js';
 
 const USAGE = `kit — a git wrapper
 
-  kit status [path…]      report the working tree; silent when clean
+  kit status [path…]      report the working tree; silent when clean and in sync
   kit add [path…]         stage changes, then show what was staged
   kit commit [words…]     stage, then commit using the words as the message
   kit log [n]             one line per commit, optionally the n most recent

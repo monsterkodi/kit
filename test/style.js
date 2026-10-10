@@ -49,7 +49,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 /*
   The header line, whole: the root, filler, a gap, then the branch.
 
-  Matches "~/s/kit main", " ~/s/kit │ main" and "  ~/s/kit   main ↓2 ↑1" alike
+  Matches "~/s/kit main", " ~/s/kit │ main" and "  ~/s/kit   main ↑2 ↓1" alike
   — none of those are pinned. Rejects a wrong path, a wrong branch, the two in
   the wrong order, or anything else sharing the line.
 */

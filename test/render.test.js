@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { parseStatusV2 } from '../lib/git.js';
 import {
     renderStatus, renderBranch, renderCommitSuccess, renderCommitFailure, renderTracking,
-    abbreviateHome, displayWidth,
+    abbreviateHome, displayWidth, outOfSync,
 } from '../lib/render.js';
 
 const NUL = '\0';
@@ -65,6 +65,40 @@ test('renderStatus: clean tree renders nothing', () => {
     assert.equal(renderStatus(d, { theme: plainTheme }), '');
 });
 
+test('renderStatus: a clean tree in sync with its upstream renders nothing', () => {
+    const d = { branch: 'main', ahead: 0, behind: 0, staged: [], unstaged: [], untracked: [] };
+    assert.equal(renderStatus(d, { theme: plainTheme }), '', 'in sync is not worth a line');
+});
+
+test('renderStatus: a clean tree ahead of its upstream renders the header alone', () => {
+    const d = {
+        root: '/home/kodi/s/kit', branch: 'main', ahead: 2, behind: 0,
+        staged: [], unstaged: [], untracked: [],
+    };
+    const out = renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme });
+    assert.equal(plain(out).split('\n').length, 1, 'the header, and nothing after it');
+    assert.match(out, headerOf('~/s/kit', 'main ↑2'));
+    assert.equal(headingLines(out).length, 0, 'a clean tree has no sections to list');
+});
+
+test('renderStatus: a clean tree behind its upstream renders the header alone', () => {
+    const d = {
+        root: '/home/kodi/s/kit', branch: 'main', ahead: 0, behind: 3,
+        staged: [], unstaged: [], untracked: [],
+    };
+    const out = renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme });
+    assert.equal(plain(out).split('\n').length, 1);
+    assert.match(out, headerOf('~/s/kit', 'main ↓3'));
+});
+
+test('outOfSync: only a branch with commits on one side counts', () => {
+    assert.equal(outOfSync({ ahead: 0, behind: 0 }), false);
+    assert.equal(outOfSync({}), false, 'no upstream means nothing to be out of sync with');
+    assert.equal(outOfSync(), false);
+    assert.equal(outOfSync({ ahead: 1, behind: 0 }), true);
+    assert.equal(outOfSync({ ahead: 0, behind: 1 }), true);
+});
+
 test('renderStatus: dirty tree has branch header and all three sections', () => {
     const d = {
         branch: 'main', ahead: 2, behind: 0, detached: false,
@@ -73,7 +107,7 @@ test('renderStatus: dirty tree has branch header and all three sections', () => 
         untracked: [{ path: 'build/' }],
     };
     const out = renderStatus(d, { theme: plainTheme });
-    assert.match(out, /main ↓2/);
+    assert.match(out, /main ↑2/);
     assert.match(out, headingOf('staged'));
     assert.match(out, headingOf('unstaged'));
     assert.match(out, headingOf('untracked'));
@@ -127,7 +161,7 @@ test('renderStatus: ahead and behind stay legible after the root', () => {
         staged: [], unstaged: [{ path: 'a', code: 'M' }], untracked: [],
     };
     const header = plain(renderStatus(d, { ...{ home: '/home/kodi' }, theme: plainTheme })).split('\n')[0];
-    assert.match(header, headerOf('~/s/kit', 'main ↓2 ↑1'));
+    assert.match(header, headerOf('~/s/kit', 'main ↑2 ↓1'));
 });
 
 test('renderStatus: a detached head keeps its short oid beside the root', () => {
@@ -179,7 +213,7 @@ test('abbreviateHome: with no home to compare against, the path stands', () => {
 
 test('renderTracking: in-sync renders empty', () => {
     assert.equal(renderTracking({ ahead: 0, behind: 0 }, { theme: plainTheme }), '');
-    assert.match(renderTracking({ ahead: 3, behind: 1 }, { theme: plainTheme }), /↓3 ↑1/);
+    assert.match(renderTracking({ ahead: 3, behind: 1 }, { theme: plainTheme }), /↑3 ↓1/);
 });
 
 /*

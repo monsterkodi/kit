@@ -19,7 +19,7 @@ import { status } from '../lib/status.js';
 import { add } from '../lib/add.js';
 import { commit, messageFor } from '../lib/commit.js';
 import { log } from '../lib/log.js';
-import { headerOf, headingOf, plainTheme } from './style.js';
+import { headerOf, headingOf, plain, plainTheme } from './style.js';
 
 const KIT = fileURLToPath(new URL('../kit.js', import.meta.url));
 
@@ -92,6 +92,42 @@ const withCwd = (dir, fn) => {
     }
 };
 
+/*
+  A repository that has somewhere to push, plus the bare origin it pushes to.
+
+  newRepo alone cannot exercise ahead/behind: a repository with no remote has no
+  upstream to compare against, so branch.ab never arrives and kit has nothing to
+  report. `other` is a second clone used to move the remote without touching
+  `local`, which is the only way to make a working tree behind rather than ahead.
+*/
+function withRemote()
+{
+    const parent = mkdtempSync(join(tmpdir(), 'kit-remote-'));
+    const origin = join(parent, 'origin.git');
+    mkdirSync(origin);
+    execFileSync('git', ['init', '-q', '--bare', '.'], { cwd: origin, stdio: 'pipe' });
+
+    const local = newRepo(join(parent, 'local'));
+    local.git('remote', 'add', 'origin', origin);
+    writeFileSync(join(local.dir, 'a.txt'), 'a\n');
+    local.git('add', '-A');
+    local.git('commit', '-qm', 'init');
+    local.git('push', '-q', '-u', 'origin', local.branch); // -u is what gives it an upstream
+
+    const other = () =>
+    {
+        const dir = join(parent, 'other');
+        execFileSync('git', ['clone', '-q', origin, dir], { encoding: 'utf8', env: local.env });
+        return {
+            dir,
+            git: (...args) => execFileSync('git', ['-c', 'user.email=t@e.st', '-c', 'user.name=test', ...args],
+                { cwd: dir, encoding: 'utf8', env: local.env }),
+        };
+    };
+
+    return { parent, local, other };
+}
+
 test('messageFor: joins words like the bash function did', () => {
     assert.equal(messageFor(['this', 'is', 'a', 'commit', 'message']), 'this is a commit message');
     assert.equal(messageFor(['fix', '   the', '  thing']), 'fix    the   thing');
@@ -114,6 +150,108 @@ test('status: clean repo is completely silent and exits 0', () => {
     finally
     {
         r.cleanup();
+    }
+});
+
+test('status: a clean tree in sync with its remote stays silent', () => {
+    const { parent, local } = withRemote();
+    try
+    {
+        const io = sink();
+        const code = withCwd(local.dir, () => status([], io, io.opts));
+        assert.equal(code, 0);
+        assert.equal(io.text(), '', 'pushed and clean is nothing to say');
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a clean tree ahead of its remote prints the header alone', () => {
+    const { parent, local } = withRemote();
+    try
+    {
+        writeFileSync(join(local.dir, 'b.txt'), 'b\n');
+        local.git('add', '-A');
+        local.git('commit', '-qm', 'unpushed');
+
+        const io = sink();
+        const code = withCwd(local.dir, () => status([], io, io.opts));
+        assert.equal(code, 0, 'unpushed commits are not a failure');
+        const out = plain(io.text());
+        assert.equal(out.split('\n').length, 1, 'the header, and nothing after it');
+        assert.match(out, headerOf(local.dir, `${local.branch} ↑1`));
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a clean tree behind its remote prints the header alone', () => {
+    const { parent, local, other } = withRemote();
+    try
+    {
+        const theirs = other();
+        writeFileSync(join(theirs.dir, 'b.txt'), 'b\n');
+        theirs.git('add', '-A');
+        theirs.git('commit', '-qm', 'theirs');
+        theirs.git('push', '-q', 'origin', local.branch);
+        local.git('fetch', '-q'); // the remote-tracking ref is what status compares against
+
+        const io = sink();
+        const code = withCwd(local.dir, () => status([], io, io.opts));
+        assert.equal(code, 0);
+        const out = plain(io.text());
+        assert.equal(out.split('\n').length, 1);
+        assert.match(out, headerOf(local.dir, `${local.branch} ↓1`));
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a remote that has never been pushed to stays silent', () => {
+    // A remote is configured but no upstream ref exists, so there is nothing to
+    // be out of sync with. git emits branch.upstream and no branch.ab at all.
+    const r = newRepo();
+    try
+    {
+        writeFileSync(join(r.dir, 'a.txt'), 'a\n');
+        r.git('add', '-A');
+        r.git('commit', '-qm', 'init');
+        r.git('remote', 'add', 'origin', join(r.dir, 'nowhere.git'));
+
+        const io = sink();
+        const code = withCwd(r.dir, () => status([], io, io.opts));
+        assert.equal(code, 0);
+        assert.equal(io.text(), '', 'no upstream ref means no comparison');
+    }
+    finally
+    {
+        r.cleanup();
+    }
+});
+
+test('commit: nothing to commit while ahead prints the header rather than silence', () => {
+    const { parent, local } = withRemote();
+    try
+    {
+        writeFileSync(join(local.dir, 'b.txt'), 'b\n');
+        local.git('add', '-A');
+        local.git('commit', '-qm', 'unpushed');
+
+        const io = sink();
+        const code = withCwd(local.dir, () => commit(['msg'], io, io.opts));
+        assert.equal(code, 1, 'git still has nothing to commit');
+        assert.match(plain(io.text()), headerOf(local.dir, `${local.branch} ↑1`));
+        assert.doesNotMatch(io.text(), /nothing added to commit/);
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
     }
 });
 
