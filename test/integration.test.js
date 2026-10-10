@@ -9,7 +9,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, renameSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -744,6 +744,170 @@ test('status: a bare repository and a .git directory are not work trees', () => 
     }
     finally
     {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+/*
+  A plain directory that holds repositories rather than being one, the shape
+  ~/s has: nothing to report at the top, everything to report one level down.
+*/
+function nest()
+{
+    const parent = mkdtempSync(join(tmpdir(), 'kit-nest-'));
+    return { parent, a: dirtyRepo(join(parent, 'a')), b: dirtyRepo(join(parent, 'b')) };
+}
+
+test('status: a directory that is not a repository reports the ones one level down', () => {
+    const { parent, a, b } = nest();
+    try
+    {
+        const io = sink();
+        assert.equal(status([parent], io, io.opts), 0);
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+        assert.match(io.text(), headerOf(b.dir, b.branch));
+        assert.ok(
+            io.text().indexOf(a.dir) < io.text().indexOf(b.dir),
+            'the repositories below are reported in name order',
+        );
+        assert.equal(io.err.length, 0, 'and the directory itself is not a problem');
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: the shell directory is looked one level down too', () => {
+    const { parent, a, b } = nest();
+    try
+    {
+        const io = sink();
+        assert.equal(withCwd(parent, () => status([], io, io.opts)), 0);
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+        assert.match(io.text(), headerOf(b.dir, b.branch));
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a clean repository one level down contributes nothing', () => {
+    const { parent, a } = nest();
+    try
+    {
+        const clean = newRepo(join(parent, 'clean'));
+        writeFileSync(join(clean.dir, 'a.txt'), 'a\n');
+        clean.git('add', '-A');
+        clean.git('commit', '-qm', 'init');
+
+        const io = sink();
+        assert.equal(status([parent], io, io.opts), 0, 'silence is not an error');
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+        assert.ok(!io.text().includes(clean.dir), 'the clean repository is not mentioned');
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a directory with no repository below it is still not a repository', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'kit-empty-'));
+    try
+    {
+        const io = sink();
+        assert.equal(status([parent], io, io.opts), 128);
+        assert.match(io.err.join('\n'), /not a git repository/);
+        assert.ok(io.err.join('\n').includes(parent), 'and it is named');
+        assert.equal(io.text(), '', 'and nothing is reported');
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a plain file below a directory is not a repository to report', () => {
+    const { parent } = nest();
+    try
+    {
+        writeFileSync(join(parent, 'a', 'notes.txt'), 'x\n');
+        const io = sink();
+        assert.equal(status([join(parent, 'a', 'notes.txt')], io, io.opts), 128);
+        assert.match(io.err.join('\n'), /not a git repository/);
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: dot directories and plain directories one level down are skipped', () => {
+    const { parent, a } = nest();
+    try
+    {
+        mkdirSync(join(parent, '.cache'));
+        dirtyRepo(join(parent, '.cache', 'hidden')); // a repository, but under a dot directory
+        mkdirSync(join(parent, 'notes')); // a directory that is not a repository
+
+        const io = sink();
+        assert.equal(status([parent], io, io.opts), 0);
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+        assert.ok(!io.text().includes('hidden'), 'nothing under a dot directory is reported');
+        assert.ok(!io.text().includes('notes'), 'a directory that is not a repository is not reported');
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a repository reached through a symlink one level down is reported', () => {
+    const { parent, a } = nest();
+    try
+    {
+        symlinkSync(a.dir, join(parent, 'linked'), 'dir');
+        const io = sink();
+        assert.equal(status([parent], io, io.opts), 0);
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+    }
+    finally
+    {
+        rmSync(parent, { recursive: true, force: true });
+    }
+});
+
+test('status: a repository that contains another repository reports only itself', () => {
+    const outer = dirtyRepo();
+    try
+    {
+        const inner = dirtyRepo(join(outer.dir, 'inner'));
+        const io = sink();
+        assert.equal(status([outer.dir], io, io.opts), 0);
+        assert.match(io.text(), headerOf(outer.dir, outer.branch));
+        assert.doesNotMatch(io.text(), headerOf(inner.dir, inner.branch));
+    }
+    finally
+    {
+        outer.cleanup();
+    }
+});
+
+test('status: one bad path among repositories that are looked into still exits 128', () => {
+    const { parent, a } = nest();
+    const stranger = mkdtempSync(join(tmpdir(), 'kit-stranger-'));
+    try
+    {
+        const io = sink();
+        assert.equal(status([parent, stranger], io, io.opts), 128);
+        assert.match(io.text(), headerOf(a.dir, a.branch));
+        assert.match(io.err.join('\n'), /not a git repository/);
+    }
+    finally
+    {
+        rmSync(stranger, { recursive: true, force: true });
         rmSync(parent, { recursive: true, force: true });
     }
 });

@@ -1,14 +1,6 @@
 #!/usr/bin/env node
 /*
   kit.js
-
-    kit status [path…]       report the working tree; silent when clean and in sync
-    kit add [path…]          stage changes, then show what was staged
-    kit commit [words…]      stage, then commit with the words as the message
-    kit log [n]              one line per commit, optionally the n most recent
-
-  Unknown subcommands are an error by design: kit deliberately does not fall
-  through to raw git. Anything kit does not cover is better served by git.
 */
 
 import { status } from './lib/status.js';
@@ -19,10 +11,11 @@ import { createTheme } from './lib/theme.js';
 
 const USAGE = `kit — a git wrapper
 
-  kit status [path…]      report the working tree; silent when clean and in sync
-  kit add [path…]         stage changes, then show what was staged
-  kit commit [words…]     stage, then commit using the words as the message
-  kit log [n]             one line per commit, optionally the n most recent
+  kit status [path…]      report the working tree, silent when clean and in sync.
+                          a directory that is not a repository is looked into one level down.
+  kit add [path…]         stage changes, then show what was staged.
+  kit commit [words…]     stage, then commit using the words as the message.
+  kit log [n]             one line per commit, optionally the n most recent.
 `;
 
 const io = {
