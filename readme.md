@@ -16,6 +16,16 @@ step.
 
 - `kit commit` always stages first. For the rare cases where that is wrong,
   use git directly.
+  
+- recommended aliases:
+
+```
+alias ks="kit status"
+alias ka="kit add"
+alias kc="kit commit"
+alias kl="kit log"
+alias kll="kit log -l"
+```
 
 ## Install
 
