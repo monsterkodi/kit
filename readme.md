@@ -1,7 +1,6 @@
 # kit
 
-A git wrapper: `status`, `add`, `commit`, `log`. No dependencies, no build
-step.
+A git wrapper: `status`, `add`, `commit`, `log`. Requires node, no dependencies, no build step.
 
     kit status [path...]      the working tree, silent when clean and in sync
     kit add [path...]         stage changes, then show what was staged
