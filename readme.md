@@ -25,7 +25,11 @@ alias ka="kit add"
 alias kc="kit commit"
 alias kl="kit log"
 alias kll="kit log -l"
-```
+```                     
+
+- then `kc hello world!` expands to `git commit -m "hello world!"`
+  a nice simplification, but it comes with a caveat: be careful with characters that might get expanded by the shell.
+  use quotes or fallback to git if in doubt.
 
 ## Install
 
