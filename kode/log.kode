@@ -1,0 +1,87 @@
+###
+███       ███████    ███████
+███      ███   ███  ███
+███      ███   ███  ███  ████
+███      ███   ███  ███   ███
+███████   ███████    ███████
+###
+
+# `kit log [-l|--long] [n]`
+#
+#    kit log          one line per commit, truncated to the terminal width
+#    kit log 10       the 10 most recent commits
+#    kit log -l       the full message, wrapped under the subject column
+#    kit log -l 10    both
+#
+#  Short mode blanks a date the line above already said, so a run of commits
+#  reads as one block; -l writes every date in full.
+#
+#  A bare number is a commit count, passed straight through to `git log -n`.
+#  The only flag is -l/--long. No other named options: flags are for git itself,
+#  not for kit.
+
+use ./git
+use ./render
+
+parseArgs = (args) ->
+
+    long = false
+    numbers = []
+
+    for arg in args
+
+        if arg in ['-l' '--long']
+            long = true
+        else if (/^\d+$/).test arg
+            numbers.push arg
+        else
+            ⮐ ok: false, message: "kit log: '#{arg}' is not a commit count (try: kit log 10)"
+
+    if numbers.length > 1
+        ⮐ ok: false, message: "kit log: expected at most one commit count, got #{numbers.length}"
+
+    ok: true
+    count: if numbers.length then Number(numbers[0]) else null
+    long: long
+
+#  Terminal width in columns, or a sane fallback.
+#
+#  process.stdout.columns is accurate when stdout is a TTY (verified in a real
+#  pty). It is undefined when output is piped — including inside a $(...)
+#  substitution — so the fallback matters. 80 matches `tput cols` here.
+
+terminalWidth = (out=process.stdout) ->
+
+    cols = out?.columns
+    if Number.isInteger(cols) and cols > 0 then ⮐ cols
+    render.DEFAULT_WIDTH
+
+log = (args, io=console, env={}) ->
+
+    if not git.inRepo()
+        io.error 'kit log: not a git repository'
+        return 128
+
+    parsed = parseArgs args
+
+    if not parsed.ok
+        io.error parsed.message
+        return 1
+
+    res = git.collectLog parsed.count, {long: parsed.long}
+
+    if res.error
+        detail = res.error.stderr.trim()
+        io.error 'kit log: ' + (if empty detail then 'git log failed' else detail)
+        return res.error.code
+
+    width = env.width ? terminalWidth(env.stream ? process.stdout)
+    out = render.renderLog res.data, {width, long: parsed.long, theme: env.theme}
+
+    if out then io.log out
+    0
+
+export
+    parseArgs: parseArgs
+    terminalWidth: terminalWidth
+    log: log

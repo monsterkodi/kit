@@ -474,6 +474,8 @@ export default {
     renderCommitSuccess:renderCommitSuccess,
     renderCommitFailure:renderCommitFailure,
     fitName:fitName,
+    truncate:truncate,
+    wrap:wrap,
     collapseDates:collapseDates,
     renderLog:renderLog,
     displayWidth:displayWidth,
