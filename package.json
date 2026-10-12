@@ -6,7 +6,7 @@
   "license": "Unlicense",
   "bin": { "kit": "./kit" },
   "scripts": {
-    "build": "node ${KODE:-../ked/js/kode/kode.js} -o js kode/*.kode && node ${KODE:-../ked/js/kode/kode.js} -o js/test kode/test/*.test.kode",
+    "build": "node ${KODE:-../ked/js/kode/kode.js} -o js kode/*.kode && node ${KODE:-../ked/js/kode/kode.js} -o js/test kode/test/*.kode",
     "test": "node --test test/",
     "test:kode": "node --test 'js/test/*.test.js'"
   },

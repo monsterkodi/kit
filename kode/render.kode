@@ -1,0 +1,441 @@
+###
+████████   ████████  ███   ███  ███████    ████████  ████████
+███   ███  ███       ████  ███  ███   ███  ███       ███   ███
+████████   ███████   ███ █ ███  ███   ███  ███████   ███████
+███   ███  ███       ███  ████  ███   ███  ███       ███   ███
+███   ███  ████████  ███   ███  ███████    ████████  ███   ███
+###
+
+#  pure data -> styled string.
+#
+#  A regex literal may not contain a space — the lexer reads one as a separator,
+#  and hands back a regex full of commas — so every space in a pattern below is
+#  written \x20.
+
+use ./theme
+
+#  The palette the CLI built, read once when theme.kode loaded. Every renderer
+#  takes a palette as an argument and this is only the fallback for the one that
+#  is not handed one.
+
+defaultTheme = theme.theme
+
+CODE_LETTER =
+    M: 'M'
+    A: 'A'
+    D: 'D'
+    R: 'R'
+    C: 'C'
+    T: 'T'
+    U: 'U'
+
+codeColour = (code, t) ->
+
+    switch code
+        'A' ➜ ⮐ t.add
+        'D' ➜ ⮐ t.del
+        'R' ➜ ⮐ t.mod
+        'C' ➜ ⮐ t.mod
+        'U' ➜ ⮐ t.del
+        '?' ➜ ⮐ t.untracked
+        else ⮐ t.mod
+
+#  Render the ahead/behind suffix, e.g. "↑2 ↓1". Empty when in sync.
+#
+#  Ahead points up and behind points down: the arrows say where the local commits
+#  sit relative to the upstream's, not which way to fix it.
+
+renderTracking = (data={}, opt={}) ->
+
+    ahead  = data.ahead ? 0
+    behind = data.behind ? 0
+    t = opt.theme ? defaultTheme
+
+    bits = []
+    if ahead > 0 then bits.push t.ahead("↑#{ahead}")
+    if behind > 0 then bits.push t.behind("↓#{behind}")
+
+    bits.join ' '
+
+#  True when the branch has commits the upstream lacks, or the reverse.
+#
+#  A branch with no upstream is never out of sync: there is nothing to compare it
+#  against, so a repository with no remote, or one that has never been pushed to,
+#  stays silent rather than inventing a comparison.
+
+outOfSync = (data={}) -> (data.ahead ? 0) > 0 or (data.behind ? 0) > 0
+
+#  Replace a leading home directory with "~".
+
+abbreviateHome = (path, home) ->
+
+    p = String(path ? '')
+    if not home then ⮐ p
+
+    base = String(home).replace(/\/+$/, '')
+    if p == base then ⮐ '~'
+    if p.startsWith(base + '/') then ⮐ '~' + p.slice(base.length)
+    p
+
+#  The branch header line. Reached when the tree is dirty, and also when the tree
+#  is clean but out of sync with the upstream — a clean branch that is waiting on
+#  a push or a pull has something to say.
+
+renderBranch = (data, opt={}) ->
+
+    home = opt.home ? process.env.HOME
+    t = opt.theme ? defaultTheme
+
+    name = if data.detached then "detached@#{String(data.oid ? '').slice(0, 7)}" else data.branch
+    label = name ? 'unknown'
+    tracking = renderTracking data, {theme: t}
+
+    branch = if tracking then "#{t.branch(label)} #{tracking}" else t.branch(label)
+
+    if not data.root then ⮐ branch
+
+    root = t.repoPath abbreviateHome(data.root, home)
+
+    "#{root} #{branch}"
+
+renderEntry = (item, opt={}) ->
+
+    t = opt.theme ? defaultTheme
+    lower = opt.lower ? false
+
+    raw = CODE_LETTER[item.code]
+    if empty raw then raw = item.code
+    if empty raw then raw = '?'
+
+    letter = if lower then raw.toLowerCase() else raw
+
+    paint = codeColour item.code, t
+    gutter = paint letter
+
+    if item.orig then ⮐ "#{gutter} #{item.path} #{t.dim('← ' + item.orig)}"
+    "#{gutter} #{item.path}"
+
+pad = (s, n) -> if s.length >= n then s else s + ' '.repeat(n - s.length)
+
+MARK = '●'
+
+#  The status: a branch header followed by one section per non-empty group.
+#
+#     ~/s/kit  main ↑2
+#    ● staged    A  src/new.mjs
+#    ● unstaged  M  src/a.mjs
+#    ● untracked ?  build/
+#
+#  A clean tree has no sections, so it renders the header alone or nothing at all:
+#  a branch waiting on a push or a pull is worth a line even with nothing to
+#  commit, a branch in sync with nothing to push is not.
+
+renderStatus = (data, opt={}) ->
+
+    committed = opt.committed ? false
+    t = opt.theme ? defaultTheme
+
+    groups = [
+        {
+            key: 'staged'
+            head: if committed then 'committed' else 'staged'
+            colour: if committed then t.headCommitted else t.headStaged
+            items: data.staged
+            lower: committed
+        }
+        {
+            key: 'unstaged'
+            head: 'unstaged'
+            colour: t.headUnstaged
+            items: data.unstaged
+        }
+        {
+            key: 'untracked'
+            head: 'untracked'
+            colour: t.headUntracked
+            items: data.untracked
+        }
+    ]
+
+    groups = groups.filter (g) -> g.items and g.items.length > 0
+
+    if groups.length == 0
+        if outOfSync(data) then ⮐ renderBranch(data, opt)
+        else ⮐ ''
+
+    lines = [renderBranch(data, opt)]
+
+    width = Math.max.apply null, groups.map((g) -> g.head.length)
+
+    #  `for [g, idx] in groups` would destructure each group as if it were a
+    #  pair, so the index comes from forEach instead — it is the one place a
+    #  callback is handed two arguments.
+
+    groups.forEach (g, idx) ->
+
+        label = if idx < groups.length - 1 then pad(g.head, width) else g.head
+        lines.push g.colour("#{MARK} #{label}")
+
+        for item in g.items
+            entry = renderEntry item, {lower: g.lower, theme: t}
+            lines.push "  #{entry}"
+
+    lines.join '\n'
+
+renderCommitSuccess = (stdout, opt={}) ->
+
+    t = opt.theme ? defaultTheme
+
+    lines = stdout.replace(/\n+$/, '').split '\n'
+    out = []
+
+    for line in lines
+
+        head = line.match(/^\[([^\s\]]+)(?:\x20([0-9a-f]{4,}))?\]\x20(.*)$/)
+
+        if head
+
+            [_, branch, hash, subject] = head
+
+            open  = t.dim '[' + branch
+            bold  = if hash then ' ' + t.bold(hash) else ''
+            close = t.dim ']'
+
+            out.push "#{open}#{bold}#{close} #{subject}"
+            continue
+
+        if (/^\s*Author:\x20/).test line then continue
+        if (/^\s*(create|delete|rename|chmod)\x20mode\x20/).test line then continue
+
+        out.push t.dim(line)
+
+    out.join '\n'
+
+renderCommitFailure = (stdout, opt={}) ->
+
+    clean = stdout.replace(/\n+$/, '')
+
+    if (/nothing\x20to\x20commit,\x20working\x20tree\x20clean/).test clean then ⮐ ''
+
+    m = clean.match(/^(nothing\x20added\x20to\x20commit[^\n]*)/m)
+    if m then ⮐ m[1].replace(/\s*\(use\x20"git\x20add[^)]*\)\s*$/, '').trim()
+
+    clean.trim()
+
+NAME_WIDTH = 8
+
+fitName = (name, width=NAME_WIDTH) ->
+
+    s = String(name ? '')
+    if s.length >= width then ⮐ s.slice(0, width)
+    s.padEnd width
+
+#  Split one rendered date into its month, its day and the column the time
+#  starts in: "Oct  1 14:00" -> { month: 'Oct', day: '1', timeStart: 7 }.
+#
+#  The format is "%b %e %H:%M" and git pads the day with a leading space, so the
+#  calendar part is whatever precedes the last space. A string that is not a date
+#  at all still yields something rather than throwing: the whole thing is the
+#  month, and there is no time to speak of.
+
+splitDate = (date) ->
+
+    timeStart = date.lastIndexOf(' ') + 1
+    calendar = date.slice 0, timeStart
+    monthEnd = calendar.indexOf ' '
+    month = if monthEnd < 0 then calendar else calendar.slice 0, monthEnd
+    day = if monthEnd < 0 then '' else calendar.slice(monthEnd + 1).trim()
+
+    month: month
+    day: day
+    timeStart: timeStart
+
+#  Blank the part of each date that the line above it already says.
+#
+#  The comparison runs over whole fields, left to right: the month goes when the
+#  month repeats, and the day with it when the day repeats too. A new month ends
+#  the run, so "Nov 9" after "Oct 9" is written out in full — sharing a day
+#  number is not sharing a date. The time is a value rather than a grouping, so
+#  it is never blanked.
+#
+#  Blank is always spaces, never a shorter string: the columns do not move when
+#  a date is dropped, and the width kit promised stays the width it emits.
+#
+#  Only `kit log` collapses. `-l` reads every commit on its own, so the dates
+#  stay where the reader expects to find them.
+
+collapseDates = (commits) ->
+
+    previous = null
+
+    commits.map (c) ->
+
+        date = String(c.date ? '')
+        current = splitDate date
+
+        blank = 0
+        if previous and current.month == previous.month
+            blank = current.month.length
+            if current.day == previous.day then blank = current.timeStart
+
+        previous = current
+
+        ' '.repeat(blank) + date.slice(blank)
+
+renderLog = (commits, opt={}) ->
+
+    if not commits or commits.length == 0 then ⮐ '' # empty history: silent
+
+    width = opt.width ? DEFAULT_WIDTH
+    long  = opt.long ? false
+    t = opt.theme ? defaultTheme
+
+    dates = if long then commits.map((c) -> String(c.date ? '')) else collapseDates(commits)
+
+    commits.map((c, i) -> renderCommit(c, width, long, t, dates[i])).join('\n')
+
+PREFIX_WIDTH      = 7 + 1 + 12 + 1 + NAME_WIDTH + 1
+NARROW_WIDTH      = 60
+MIN_MESSAGE_WIDTH = 40
+DEFAULT_WIDTH     = 80
+
+ELLIPSIS = '…'
+
+NARROW_INDENT = 2
+
+#  Display width of a string in terminal columns.
+
+displayWidth = (s) -> Array.from(String(s)).length
+
+#  Truncate to `width` columns, marking the cut with an ellipsis.
+
+truncate = (s, width) ->
+
+    chars = Array.from String(s)
+
+    if chars.length <= width then ⮐ String(s)
+    if width <= 1 then ⮐ ELLIPSIS.slice 0, Math.max(width, 0)
+
+    chars.slice(0, width - 1).join('') + ELLIPSIS
+
+#  Wrap text to `width` columns, breaking on spaces and preserving blank lines
+#  between paragraphs.
+#
+#  Words longer than the width are hard-split rather than allowed to overflow,
+#  so no line can exceed the terminal.
+
+wrap = (text, width) ->
+
+    out = []
+
+    for paragraph in String(text).split('\n')
+
+        if paragraph.trim() == ''
+            out.push '' # paragraph break, kept
+            continue
+
+        line = ''
+
+        for word in paragraph.trim().split(/\s+/)
+
+            for chunk in splitLong(word, Math.max(width, 1))
+
+                if line == '' then line = chunk
+
+                else if displayWidth(line) + 1 + displayWidth(chunk) <= width
+                    line += ' ' + chunk
+
+                else
+                    out.push line
+                    line = chunk
+
+        if line != '' then out.push line
+
+    out
+
+splitLong = (word, width) ->
+
+    chars = Array.from word
+    if chars.length <= width then ⮐ [word]
+
+    chunks = []
+    i = 0
+
+    while i < chars.length
+        chunks.push chars.slice(i, i + width).join('')
+        i += width
+
+    chunks
+
+renderCommit = (c, width, long, t, date=c.date ? '') ->
+
+    hash = t.logHash(c.hash ? '')
+    stamp = t.logDate(date)
+    name = t.logName(fitName(c.name))
+
+    prefix = "#{hash} #{stamp} #{name} "
+
+    body = c.body ? c.subject ? ''
+
+    if width < NARROW_WIDTH
+
+        text = if long then body else firstLine(c)
+
+        inner = Math.max(width - NARROW_INDENT, 8)
+        indent = ' '.repeat NARROW_INDENT
+
+        #  The minimum-width floor is a preference, never a licence to exceed the
+        #  terminal: a 30-column window must not emit a 42-column line.
+
+        if long then lines = wrap(text, inner)
+        else lines = [truncate(text, Math.min(Math.max(inner, MIN_MESSAGE_WIDTH), width - NARROW_INDENT))]
+
+        rest = lines.map (l) -> indent + l
+
+        return [prefix.trimEnd()].concat(rest).join('\n')
+
+    budget = Math.max(width - PREFIX_WIDTH, 1)
+    text = if long then body else firstLine(c)
+
+    if long
+
+        lines = wrap text, budget
+        indent = ' '.repeat PREFIX_WIDTH
+
+        rest = lines.slice(1).map (l) -> if l == '' then '' else indent + l
+
+        return [prefix + lines[0]].concat(rest).join('\n')
+
+    #  Short: one line, truncated to fit the remaining budget. When the budget is
+    #  below MIN_MESSAGE_WIDTH the message is emitted whole and the terminal wraps
+    #  it, because a 30-column stub is less use than a long line.
+
+    if budget < MIN_MESSAGE_WIDTH then ⮐ prefix + text
+
+    prefix + truncate(text, budget)
+
+firstLine = (c) ->
+
+    if c.subject != undefined and not c.subject.includes('\n') then ⮐ c.subject
+
+    s = String(c.subject ? '')
+    s.split('\n')[0]
+
+export
+    renderTracking: renderTracking
+    outOfSync: outOfSync
+    abbreviateHome: abbreviateHome
+    renderBranch: renderBranch
+    renderEntry: renderEntry
+    renderStatus: renderStatus
+    renderCommitSuccess: renderCommitSuccess
+    renderCommitFailure: renderCommitFailure
+    fitName: fitName
+    collapseDates: collapseDates
+    renderLog: renderLog
+    displayWidth: displayWidth
+    NAME_WIDTH: NAME_WIDTH
+    PREFIX_WIDTH: PREFIX_WIDTH
+    NARROW_WIDTH: NARROW_WIDTH
+    MIN_MESSAGE_WIDTH: MIN_MESSAGE_WIDTH
+    DEFAULT_WIDTH: DEFAULT_WIDTH
