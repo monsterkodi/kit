@@ -6,12 +6,6 @@
    ███     ███   ███  ████████  ███   ███  ████████
 ###
 
-#  ████████  ███   ███  ███   ███  ████████   ███████
-#  ███       ███   ███  ████  ███  ███   ███  ███   ███
-#  ███████   ███   ███  ███ █ ███  ███████   ███████
-#  ███       ███   ███  ███  ████  ███       ███
-#  ████████  ███████   ███   ███  ████████  ███████
-
 #  the colour palette as a value rather than as ambient state
 
 #  Colour used to be decided once, when theme.js was first imported, by reading
