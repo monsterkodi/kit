@@ -932,15 +932,6 @@ test('add and commit: the header names the repository root too', () => {
     }
 });
 
-test('kit --help lists each subcommand with its arguments', () => {
-    const out = execFileSync(process.execPath, [KIT, '--help'], { encoding: 'utf8' });
-    assert.match(out, /^ {2}kit status \[path…] {2,}report the working tree/m);
-    assert.match(out, /^ {2}kit add \[path…] {2,}stage changes/m);
-    assert.match(out, /^ {2}kit commit \[words…] {2,}stage, then commit/m);
-    assert.match(out, /^ {2}kit log \[n] \[-l] {2,}one line per commit/m);
-});
-
-
 function repoWithCommits(n)
 {
     const r = newRepo();

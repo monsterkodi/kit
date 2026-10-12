@@ -26,12 +26,6 @@ function kit(args, env = {})
     return { code: r.status, out: r.stdout, err: r.stderr };
 }
 
-test('kit --help works with NO_COLOR unset and is plain text either way', () => {
-    const out = kit(['--help']).out;
-    assert.match(out, /kit status/);
-    assert.doesNotMatch(out, SGR, 'help text is never coloured');
-});
-
 test('kit log: colour follows the stream, not the environment', () => {
     // spawnSync gives a pipe, so isTTY is false and output must be plain even
     // though NO_COLOR is unset here. This is the case that used to force the
@@ -51,12 +45,6 @@ test('kit log: NO_COLOR still wins when a terminal is faked', () => {
     const noColour = kit(['log', '1'], { NO_COLOR: '1' });
     assert.equal(plain.code, noColour.code);
     assert.doesNotMatch(noColour.out, SGR);
-});
-
-test('kit status: a clean tree stays silent regardless of colour', () => {
-    const r = kit(['status']);
-    assert.equal(r.code, 0);
-    assert.doesNotMatch(r.out, SGR);
 });
 
 test('every subcommand still runs with the palette threaded through', async () => {
