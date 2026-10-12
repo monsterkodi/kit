@@ -1078,6 +1078,90 @@ test('log: date is the short absolute form without seconds', () => {
     }
 });
 
+/*
+  A run of commits written on chosen days, at chosen times so the order is not a
+  coincidence of the clock. git renders the date in the local zone, so the tests
+  below read the expectation back out of a Date rather than assuming one.
+*/
+function datedRepo()
+{
+    const r = newRepo();
+    const dated = (msg, iso) =>
+    {
+        writeFileSync(join(r.dir, `${msg}.txt`), `${msg}\n`);
+        r.git('add', '-A');
+        execFileSync('git', ['commit', '-qm', msg], {
+            cwd: r.dir, encoding: 'utf8',
+            env: { ...r.env, GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso },
+        });
+    };
+    dated('first', '2020-05-04T09:15:00 +0000');
+    dated('second', '2020-05-04T11:45:00 +0000');
+    dated('third', '2020-06-07T08:30:00 +0000');
+    return r;
+}
+
+/*
+  The date column, between the short hash and the author: the hash is seven
+  characters and one space wide.
+*/
+const dateOf = (line) => line.slice(8, 20);
+
+/*
+  The date as git prints it here: "%b %e %H:%M", in the local zone. The month
+  is spelled out rather than derived, because %b is the locale's business.
+*/
+function localDate(month, iso, minutes)
+{
+    const d = new Date(iso);
+    const day = String(d.getDate()).padStart(2, ' ');
+    return `${month} ${day} ${String(d.getHours()).padStart(2, '0')}:${minutes}`;
+}
+
+/*
+  A date whose calendar part has been blanked, which is to say: the time kept,
+  the rest spaces. Slicing the time off the date it belongs to is what keeps
+  this independent of the zone the machine happens to be in.
+*/
+const blanked = (date) => ' '.repeat(date.length - 5) + date.slice(-5);
+
+// The three commits datedRepo() writes, as this machine's zone spells them.
+const FIRST = localDate('May', '2020-05-04T09:15:00Z', '15');
+const SECOND = localDate('May', '2020-05-04T11:45:00Z', '45');
+const THIRD = localDate('Jun', '2020-06-07T08:30:00Z', '30');
+
+test('log: a date the line above already gave is blanked to spaces', () => {
+    const r = datedRepo();
+    try
+    {
+        const io = sink();
+        withCwd(r.dir, () => log([], io, { ...io.opts, width: 200 }));
+        const dates = io.text().split('\n').map(dateOf);
+
+        assert.equal(dates[0], FIRST, 'the first line carries the date in full');
+        assert.equal(dates[1], blanked(SECOND), 'the second is the same day, so only its time is left');
+        assert.equal(dates[2], THIRD, 'a new month is written out in full');
+    }
+    finally
+    {
+        r.cleanup();
+    }
+});
+
+test('log: -l writes the date on every line, blanked or not', () => {
+    const r = datedRepo();
+    try
+    {
+        const io = sink();
+        withCwd(r.dir, () => log(['-l'], io, { ...io.opts, width: 200 }));
+        assert.deepEqual(io.text().split('\n').map(dateOf), [FIRST, SECOND, THIRD]);
+    }
+    finally
+    {
+        r.cleanup();
+    }
+});
+
 test('log: a non-numeric argument errors instead of printing everything', () => {
     const r = repoWithCommits(3);
     try
