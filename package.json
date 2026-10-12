@@ -4,11 +4,11 @@
   "description": "A git wrapper: status, add, commit and log with cleaner output",
   "type": "module",
   "license": "Unlicense",
-  "bin": { "kit": "./kit" },
+  "bin": { "kit": "./bin/kit" },
   "scripts": {
     "build": "node ${KODE:-../ked/js/kode/kode.js} -o js kode/*.kode && node ${KODE:-../ked/js/kode/kode.js} -o js/test kode/test/*.kode",
-    "test": "node --test test/",
-    "test:kode": "node --test 'js/test/*.test.js'"
+    "test": "node --test 'js/test/*.test.js'",
+    "test:js": "node --test test/"
   },
   "engines": { "node": ">=20" }
 }

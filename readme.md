@@ -1,6 +1,13 @@
 # kit
 
-A git wrapper: `status`, `add`, `commit`, `log`. Requires node, no dependencies, no build step.
+A git wrapper: `status`, `add`, `commit`, `log`. Requires node, no dependencies.
+
+The source is [Kode](../ked), not javascript: `kode/` holds it and `js/` is
+generated from it. To rebuild after changing a `.kode` file:
+
+    pnpm run build     # KODE=/path/to/kode.js if the compiler is elsewhere
+
+    pnpm test          # runs the generated suite in js/test
 
     kit status [path...]      the working tree, silent when clean and in sync
     kit add [path...]         stage changes, then show what was staged
