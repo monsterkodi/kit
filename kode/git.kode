@@ -1,0 +1,337 @@
+###
+ ███████   ███  █████████
+███        ███     ███
+███  ████  ███     ███
+███   ███  ███     ███
+ ███████   ███     ███
+###
+
+###
+ ███████   ███████   ███      ███      ████████   ███████  █████████
+███       ███   ███  ███      ███      ███       ███          ███   
+███       ███   ███  ███      ███      ███████   ███          ███   
+███       ███   ███  ███      ███      ███       ███          ███   
+ ███████   ███████   ███████  ███████  ████████   ███████     ███   
+###
+
+#  the "collect" layer.
+#
+#  Runs git and returns plain data plus the exit code. Nothing here formats
+#  output for humans; that is render.kode's job. Keeping the seam sharp is what
+#  lets the renderers be tested without a repository.
+#
+#  Porcelain is used everywhere, never human-readable prose, because porcelain
+#  is the format git guarantees to keep stable across versions and locales.
+
+import cp from 'node:child_process'
+
+#  Run git and capture everything about the invocation.
+
+MAXBUFFER = 64 * 1024 * 1024
+
+#  GIT_OPTIONAL_LOCKS is deliberately NOT set to 0 here. It makes git skip the
+#  index refresh/lock, which is right for read-only commands like log but wrong
+#  when a mutating `git add` is immediately followed by a status read: the status
+#  then observes a stale index and reports nothing staged.
+
+gitEnv = -> Object.assign {}, process.env, {GIT_PAGER: 'cat', PAGER: 'cat'}
+
+run = (args, opt={}) ->
+
+    opts =
+        encoding: 'utf8'
+        maxBuffer: MAXBUFFER
+        env: gitEnv()
+
+    opts = Object.assign opts, opt
+
+    r = cp.spawnSync 'git', args, opts
+
+    if r.error
+        ⮐ code: 1, ok: false, stdout: '', stderr: String(r.error.message)
+
+    ⮐ code: r.status ? 1, ok: r.status == 0, stdout: r.stdout ? '', stderr: r.stderr ? ''
+
+capture = (args) ->
+
+    opts =
+        encoding: 'utf8'
+        maxBuffer: MAXBUFFER
+        env: gitEnv()
+
+    cp.execFileSync 'git', args, opts
+
+at = (dir) -> if dir then {cwd: dir} else {}
+
+repoProblem = (dir) ->
+
+    r = run(['rev-parse', '--is-inside-work-tree'], at(dir))
+    if not r.ok then ⮐ 'not a git repository'
+    if r.stdout.trim() != 'true' then ⮐ 'no work tree'
+    ''
+
+inRepo = (dir) -> repoProblem(dir) == ''
+
+###
+ ███████  █████████   ███████   █████████  ███   ███   ███████        ███   ███  █████ 
+███          ███     ███   ███     ███     ███   ███  ███             ███   ███     ███
+███████      ███     █████████     ███     ███   ███  ███████          ███ ███     ███ 
+     ███     ███     ███   ███     ███     ███   ███       ███           ███      ███  
+███████      ███     ███   ███     ███      ███████   ███████             █      ██████
+###
+
+#  Parse `git status --porcelain=v2 -z -b -unormal` into structured data.
+
+parseStatusV2 = (raw) ->
+
+    out =
+        branch: null
+        upstream: null
+        ahead: 0
+        behind: 0
+        detached: false
+        staged: []
+        unstaged: []
+        untracked: []
+
+    fields = raw.split '\0'
+
+    for i in 0...fields.length
+
+        rec = fields[i]
+        if empty rec then continue
+
+        if rec.startsWith '# branch.oid'
+            out.oid = rec.slice('# branch.oid '.length).trim()
+            continue
+
+        if rec.startsWith '# branch.head'
+            head = rec.slice('# branch.head '.length).trim()
+            out.detached = head == '(detached)'
+            out.branch = if out.detached then null else head
+            continue
+
+        if rec.startsWith '# branch.upstream'
+            out.upstream = rec.slice('# branch.upstream '.length).trim()
+            continue
+
+        if rec.startsWith '# branch.ab'
+            #  \x20 rather than a literal space: a regex with a space in it is not
+            #  a regex to the kode lexer, which reads the space as a separator.
+            m = rec.slice('# branch.ab '.length).trim().match(/^\+(\d+)\x20-(\d+)$/)
+            if m
+                out.ahead = Number(m[1])
+                out.behind = Number(m[2])
+            continue
+
+        if rec.startsWith '#' then continue # any other header
+
+        if rec.startsWith '?'
+            out.untracked.push path: rec.slice(2), code: '?'
+            continue
+
+        if rec.startsWith '!' then continue # ignored: not shown, by design
+
+        kind = rec[0]
+        rest = rec.slice 2
+
+        if kind in ['1' 'u']
+
+            parts = rest.split ' '
+            xy = parts[0]
+
+            #  mH mI mW hH hI then path; -z means the path is everything after
+            #  the seventh space, so join the remainder rather than assume index.
+
+            path = parts.slice(7).join ' '
+            x = xy[0]
+            y = xy[1]
+
+            if x != '.' then out.staged.push {path: path, code: x}
+            if y != '.' then out.unstaged.push {path: path, code: y}
+            continue
+
+        if kind == '2'
+
+            parts = rest.split ' '
+            xy = parts[0]
+            path = parts.slice(8).join ' '
+            orig = fields[++i] ? '' # the rename/copy source path
+            x = xy[0]
+            y = xy[1]
+
+            if x != '.' then out.staged.push {path, code: x, orig}
+            if y != '.' then out.unstaged.push {path, code: y, orig}
+            continue
+
+    out
+
+#  The given directory's path relative to the repository root, as a prefix
+#  ending in "/", or '' at the root. Empty outside a repository.
+
+showPrefix = (dir) ->
+
+    r = run(['rev-parse', '--show-prefix'], at(dir))
+    if not r.ok then ⮐ ''
+    r.stdout.trim()
+
+#  The absolute path of the repository root containing `dir`, or '' when there is
+#  none.
+
+showToplevel = (dir) ->
+
+    r = run(['rev-parse', '--show-toplevel'], at(dir))
+    if not r.ok then ⮐ ''
+    r.stdout.trim()
+
+#  Rewrite repo-root-absolute paths to be relative to the current directory,
+#  the way `git status` does when run from a subdirectory.
+
+relativise = (data, prefix) ->
+
+    if not prefix then ⮐ data
+
+    out = Object.assign {}, data
+
+    fix = (items) ->
+
+        items.map (item) ->
+
+            rel = relativeTo(item.path, prefix)
+            if rel == item.path then ⮐ item
+
+            next = Object.assign {}, item, {path: rel}
+            delete next.orig
+            next
+
+    out.staged = fix data.staged
+    out.unstaged = fix data.unstaged
+    out.untracked = fix data.untracked
+    out
+
+#  Make a repository-root-relative path relative to `prefix`
+
+relativeTo = (path, prefix) ->
+
+    if not prefix then ⮐ path
+    if path.startsWith prefix then ⮐ path.slice prefix.length
+
+    #  prefix always ends in '/', so drop it first: slicing 'lib/' at its last
+    #  '/' would leave 'lib' rather than the directory above it.
+
+    acc = prefix.replace(/\/$/, '') # 'lib/' -> 'lib'
+    up  = 0
+
+    while true
+
+        if acc != '' and path.startsWith(acc + '/')
+            ⮐ '../'.repeat(up) + path.slice(acc.length + 1)
+
+        cut = acc.lastIndexOf '/'
+        acc = if cut == -1 then '' else acc.slice(0, cut)
+        up += 1
+
+        if acc == '' then ⮐ '../'.repeat(up) + path
+
+collectStatus = (dir) ->
+
+    r = run(['status', '--porcelain=v2', '-z', '-b', '-unormal'], at(dir))
+    if not r.ok then ⮐ error: r, data: null
+
+    data = relativise(parseStatusV2(r.stdout), showPrefix(dir))
+    data.root = showToplevel dir
+
+    error: null, data: data
+
+stagedCount = ->
+
+    r = run(['diff', '--cached', '--name-only'])
+    if not r.ok then ⮐ 0
+    r.stdout.split('\n').filter(Boolean).length
+
+LOG_DATE = 'format-local:%b %e %H:%M'
+
+LOG_FORMAT_SHORT = '%x00%h%x00%ad%x00%an%x00%s%x00'
+LOG_FORMAT_LONG  = '%x00%h%x00%ad%x00%an%x00%B%x00'
+
+LOG_STRIDE = 5
+
+###
+ ███████   ███  █████████        ███       ███████    ███████ 
+███        ███     ███           ███      ███   ███  ███      
+███  ████  ███     ███           ███      ███   ███  ███  ████
+███   ███  ███     ███           ███      ███   ███  ███   ███
+ ███████   ███     ███           ███████   ███████    ███████ 
+###
+
+#  Parse `git log` output produced by the formats above.
+
+parseLog = (raw) ->
+
+    fields = raw.split '\0'
+    out = []
+
+    #  Field 0 is the empty marker from the leading %x00; from index 1 the record
+    #  repeats every LOG_STRIDE fields: hash, date, name, message, "\n".
+
+    i = 1
+    while i + 4 <= fields.length
+
+        [hash, date, name, message] = fields.slice i, i + 4
+
+        if valid hash
+
+            text = String(message ? '').replace(/\s+$/, '')
+
+            out.push
+                hash: hash.trim()
+                date: date.trim()
+                name: name.trim()
+                subject: text
+                body: text
+
+        i += LOG_STRIDE
+
+    out
+
+#  True when the repository has no commits yet (an unborn HEAD).
+
+hasCommits = -> run(['rev-parse', '--verify', 'HEAD']).ok
+
+#  Collect commit history
+#    displays commits from oldest to newest
+#    defaults to one line per commit
+#    option long=true displays the full message
+
+collectLog = (count=null, opt={}) ->
+
+    long = opt.long ? false
+
+    if not hasCommits() then ⮐ {error: null, data: []}
+
+    format = if long then LOG_FORMAT_LONG else LOG_FORMAT_SHORT
+    args = ['log', "--format=#{format}", "--date=#{LOG_DATE}", '--reverse']
+
+    if count != null then args.push '-n', String(count)
+
+    r = run args
+    if not r.ok then ⮐ {error: r, data: null}
+
+    error: null, data: parseLog(r.stdout)
+
+export
+    run: run
+    capture: capture
+    repoProblem: repoProblem
+    inRepo: inRepo
+    parseStatusV2: parseStatusV2
+    showPrefix: showPrefix
+    showToplevel: showToplevel
+    relativise: relativise
+    relativeTo: relativeTo
+    collectStatus: collectStatus
+    stagedCount: stagedCount
+    hasCommits: hasCommits
+    collectLog: collectLog
+    parseLog: parseLog
+    LOG_DATE: LOG_DATE
