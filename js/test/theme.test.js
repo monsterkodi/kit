@@ -1,10 +1,16 @@
 var _k_ = {list: function (l) {return l != null ? typeof l.length === 'number' ? l : [] : []}}
 
-var names, setNoColor, SGR, strip, withNoColor
+var all, cases, commit, names, setNoColor, SGR, strip, tree, withNoColor
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import git from "../git.js"
+
+import render from "../render.js"
+
 import theme from "../theme.js"
+
+import style from "./style.js"
 
 SGR = /\u001b\[[0-9;]*m/g
 
@@ -100,4 +106,77 @@ test('theme: the default palette follows NO_COLOR as loaded',function ()
     })
     assert.equal(plain.enabled,true)
     return assert.equal(typeof(theme.theme.enabled),'boolean','the default export carries its own flag')
+})
+
+tree = function ()
+{
+    var raw
+
+    raw = ['# branch.oid abc123def456','# branch.head main','1 A. N... 100644 100644 100644 a b src/new.mjs','? build/'].join('\0') + '\0'
+    return git.parseStatusV2(raw)
+}
+commit = {hash:'c63ebbf',date:'Oct  2 00:18',name:'Thorsten',subject:'third'}
+cases = {status:function ()
+{
+    return render.renderStatus(tree(),{theme:style.plainTheme})
+},log:function ()
+{
+    return render.renderLog([commit],{theme:style.plainTheme})
+},entry:function ()
+{
+    return render.renderEntry({path:'a.mjs',code:'M'},{theme:style.plainTheme})
+},commit:function ()
+{
+    return render.renderCommitSuccess('[master e3cd348] fourth',{theme:style.plainTheme})
+}}
+
+all = function ()
+{
+    return Object.fromEntries(Object.entries(cases).map(function ([k,fn])
+    {
+        return [k,fn()]
+    }))
+}
+test('renderers: output does not depend on NO_COLOR once a palette is passed',function ()
+{
+    var key, set, unset
+
+    unset = withNoColor(undefined,function ()
+    {
+        return all()
+    })
+    set = withNoColor('1',function ()
+    {
+        return all()
+    })
+    var list = _k_.list(Object.keys(cases))
+    for (var _c_ = 0; _c_ < list.length; _c_++)
+    {
+        key = list[_c_]
+        assert.equal(set[key],unset[key],`${key} must not read NO_COLOR`)
+        assert.doesNotMatch(unset[key],SGR,`${key} must be plain when handed a plain palette`)
+    }
+})
+test('renderers: the palette argument wins over the environment',function ()
+{
+    var enabled, forcedColour, forcedPlain
+
+    enabled = theme.createTheme(true)
+    forcedPlain = withNoColor('1',function ()
+    {
+        return render.renderLog([commit],{theme:theme.createTheme(false)})
+    })
+    assert.doesNotMatch(forcedPlain,SGR,'an explicit plain palette beats NO_COLOR')
+    forcedColour = withNoColor(undefined,function ()
+    {
+        return render.renderLog([commit],{theme:enabled})
+    })
+    return assert.match(forcedColour,SGR,'an explicit enabled palette survives an unset NO_COLOR')
+})
+test('renderers: an omitted palette falls back to the default, not a crash',function ()
+{
+    var out
+
+    out = render.renderLog([commit],{width:200})
+    return assert.ok(out.includes('third'),'the subject renders with no palette argument at all')
 })

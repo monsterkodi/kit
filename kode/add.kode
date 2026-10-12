@@ -1,0 +1,45 @@
+###
+ ███████   ███████    ███████
+███   ███  ███   ███  ███   ███
+█████████  ███   ███  ███   ███
+███   ███  ███   ███  ███   ███
+███   ███  ███████    ███████
+###
+
+#  `kit add [path…]`
+#
+#  Maps to `git add .` (no arguments) or `git add <path>…`.
+#
+#  git add prints nothing on success, so "what did this command do?" is
+#  answered by rendering status afterwards. Delegating to the same renderer
+#  kit status uses keeps the output consistent across the two commands by
+#  construction rather than by duplicated logic.
+
+use ./git
+use ./render
+
+addArgs = (paths) -> if paths.length > 0 then ['add'].concat(paths) else ['add', '.']
+
+add = (paths, io=console, opt={}) ->
+
+    if not git.inRepo()
+        io.error 'kit add: not a git repository'
+        return 128
+
+    r = git.run addArgs(paths)
+
+    if not r.ok
+        detail = r.stderr.trim()
+        io.error 'kit add: ' + (if empty detail then 'git add failed' else detail)
+        return r.code
+
+    res = git.collectStatus()
+
+    out = render.renderStatus res.data, opt
+    if out then io.log out
+
+    0
+
+export
+    addArgs: addArgs
+    add: add

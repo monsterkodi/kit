@@ -29,7 +29,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
+use ../git
+use ../render
 use ../theme
+use ./style
 
 #  Global, so stripping removes every sequence rather than the first: a single
 #  palette call wraps the text in two sequences, and a non-global replace leaves
@@ -116,3 +119,65 @@ test 'theme: the default palette follows NO_COLOR as loaded' ->
     assert.equal plain.enabled, true
 
     assert.equal typeof(theme.theme.enabled), 'boolean', 'the default export carries its own flag'
+
+###
+████████   ████████  ███   ███  ███████    ████████  ████████   ████████  ████████    ███████
+███   ███  ███       ████  ███  ███   ███  ███       ███   ███  ███       ███   ███  ███     
+███████    ███████   ███ █ ███  ███   ███  ███████   ███████    ███████   ███████    ███████ 
+███   ███  ███       ███  ████  ███   ███  ███       ███   ███  ███       ███   ███       ███
+███   ███  ████████  ███   ███  ███████    ████████  ███   ███  ████████  ███   ███  ███████ 
+###
+
+#  the point of the refactor: rendering must not consult the environment at all.
+#  Each case sets NO_COLOR to the opposite of what a reader would expect and
+#  asserts the output is unchanged, so a renderer that reached back into
+#  process.env would fail rather than quietly pass.
+
+tree = ->
+    raw = [
+        '# branch.oid abc123def456'
+        '# branch.head main'
+        '1 A. N... 100644 100644 100644 a b src/new.mjs'
+        '? build/'
+        ].join('\0') + '\0'
+    git.parseStatusV2 raw
+
+commit = hash: 'c63ebbf', date: 'Oct  2 00:18', name: 'Thorsten', subject: 'third'
+
+cases =
+    status: -> render.renderStatus(tree(), {theme: style.plainTheme})
+    log: -> render.renderLog([commit], {theme: style.plainTheme})
+    entry: -> render.renderEntry({path: 'a.mjs', code: 'M'}, {theme: style.plainTheme})
+    commit: -> render.renderCommitSuccess('[master e3cd348] fourth', {theme: style.plainTheme})
+
+all = -> Object.fromEntries(Object.entries(cases).map(([k, fn]) -> [k, fn()]))
+
+test 'renderers: output does not depend on NO_COLOR once a palette is passed' ->
+
+    unset = withNoColor(undefined, -> all())
+    set = withNoColor('1', -> all())
+
+    for key in Object.keys cases
+        assert.equal set[key], unset[key], "#{key} must not read NO_COLOR"
+        assert.doesNotMatch unset[key], SGR, "#{key} must be plain when handed a plain palette"
+
+#  A plain palette stays plain even when the environment says colour is wanted,
+#  and an enabled palette stays coloured even when it says the opposite. Both
+#  directions, because a one-way test passes an implementation that ignores its
+#  argument and always returns the default.
+
+test 'renderers: the palette argument wins over the environment' ->
+
+    enabled = theme.createTheme true
+
+    forcedPlain = withNoColor('1', -> render.renderLog([commit], {theme: theme.createTheme(false)}))
+    assert.doesNotMatch forcedPlain, SGR, 'an explicit plain palette beats NO_COLOR'
+
+    forcedColour = withNoColor(undefined, -> render.renderLog([commit], {theme: enabled}))
+    assert.match forcedColour, SGR, 'an explicit enabled palette survives an unset NO_COLOR'
+
+test 'renderers: an omitted palette falls back to the default, not a crash' ->
+
+    out = render.renderLog [commit], {width: 200}
+
+    assert.ok out.includes('third'), 'the subject renders with no palette argument at all'
