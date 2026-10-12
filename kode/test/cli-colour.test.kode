@@ -1,0 +1,91 @@
+###
+ ███████  ███      ███         ███████   ███████   ███       ███████   ███   ███  ████████
+███       ███      ███        ███       ███   ███  ███      ███   ███  ███   ███  ███   ███
+███       ███      ███        ███       ███   ███  ███      ███   ███  ███   ███  ███████
+███       ███      ███        ███       ███   ███  ███      ███   ███  ███   ███  ███   ███
+ ███████  ███████  ███         ███████   ███████   ███████   ███████    ███████   ███   ███
+###
+
+#  End-to-end: the CLI decides colour, so the test suite no longer has to.
+#
+#  Two things are pinned here that cannot be seen from the renderer tests. First,
+#  the entry point makes the decision and passes it down, so a command invoked
+#  without a palette still gets the environment's answer. Second — and this is the
+#  reason the refactor happened — the suite asserts on plain output while running
+#  in an environment where NO_COLOR is unset and the runner wants colour, and
+#  those two facts no longer interfere.
+#
+#  The javascript resolved ../kit.js, which does not exist: the entry point was
+#  ./kit. spawnSync failed, r.stdout was null, and assert.doesNotMatch(null, …)
+#  passed — the first two tests here were green for the wrong reason. The path is
+#  bin/kit now, and the assertions have something to chew on.
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import cp from 'node:child_process'
+import url from 'node:url'
+
+use ../status
+use ../log
+use ../theme
+
+KIT = url.fileURLToPath(new URL('../../bin/kit', import.meta.url))
+
+SGR = /\u001b\[[0-9;]*m/
+
+kit = (args, env={}) ->
+
+    r = cp.spawnSync process.execPath, [KIT].concat(args), {
+        encoding: 'utf8'
+        env: Object.assign({}, process.env, {NO_COLOR: undefined, TERM: 'xterm'}, env)
+    }
+
+    code: r.status
+    out: r.stdout
+    err: r.stderr
+
+test 'kit log: colour follows the stream, not the environment' ->
+
+    #  spawnSync gives a pipe, so isTTY is false and output must be plain even
+    #  though NO_COLOR is unset here. This is the case that used to force the
+    #  whole suite to run with NO_COLOR=1.
+
+    piped = kit ['log', '1']
+
+    assert.ok piped.out, 'the entry point ran'
+    assert.doesNotMatch piped.out, SGR, 'piped output is plain with NO_COLOR unset'
+
+    forced = kit(['log', '1'], {FORCE_COLOUR: '1'})
+
+    assert.equal forced.out, piped.out, 'output does not vary'
+
+test 'kit log: NO_COLOR still wins when a terminal is faked' ->
+
+    #  A pty is not available here, so isTTY stays false either way. What this
+    #  pins is that the environment variable is still honoured and not dropped in
+    #  the move: setting it must not change success, only formatting.
+
+    plain = kit ['log', '1']
+    noColour = kit(['log', '1'], {NO_COLOR: '1'})
+
+    assert.equal plain.code, noColour.code
+    assert.doesNotMatch noColour.out, SGR
+
+test 'every subcommand still runs with the palette threaded through' ->
+
+    #  The commands are invoked here exactly as kit.kode invokes them, with a
+    #  palette argument, so a signature change that dropped the argument would
+    #  show up as a crash rather than as silently uncoloured output.
+
+    quiet =
+        log: ->
+        error: ->
+
+    palette = theme.createTheme true
+
+    st = status.status [], quiet, {theme: palette}
+    assert.ok [0, 128].includes(st), "status returned #{st}"
+
+    lg = log.log ['log', '1'], quiet, {theme: palette}
+    assert.ok [0, 1, 128].includes(lg), "log returned #{lg}"

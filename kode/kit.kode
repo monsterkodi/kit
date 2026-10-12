@@ -1,0 +1,86 @@
+###
+███   ███  ███  █████████
+███  ███   ███     ███
+███████    ███     ███
+███  ███   ███     ███
+███   ███  ███     ███
+###
+
+#  the entry point: argv in, one command out.
+#
+#  Nothing here decides anything. The switch finds the command and hands the
+#  rest of argv to the module that owns it, with the two arguments every
+#  command takes: the io to write to, and the palette.
+
+use ./status
+use ./add
+use ./commit
+use ./log
+use ./theme
+
+USAGE = """
+kit — a git wrapper
+
+  kit status [path…]      report the working tree, silent when clean and in sync.
+                          a directory that is not a repository is looked into one level down.
+  kit add [path…]         stage changes, then show what was staged.
+  kit commit [words…]     stage, then commit using the words as the message.
+  kit log [n] [-l]        one line per commit, -l the full message, n the count.
+"""
+
+out = (s) -> process.stdout.write s + '\n'
+err = (s) -> process.stderr.write s + '\n'
+
+io =
+    log: out
+    error: err
+
+#  The one place the environment decides colour.
+#
+#  Colour is only wanted when something is going to look at it, so a pipe or a
+#  redirected file gets plain text and a terminal gets the palette. Checking
+#  isTTY here rather than in theme.kode keeps the decision at the edge:
+#  everything below receives a palette as an argument, and the test suite hands
+#  the renderers a plain one directly instead of asking the environment for it.
+
+colour = Boolean(process.stdout.isTTY) and not process.env.NO_COLOR and process.env.TERM != 'dumb'
+
+kit = ->
+
+    argv = process.argv.slice 2
+    cmd = argv[0]
+    rest = argv.slice 1
+
+    palette = theme.createTheme colour
+
+    switch cmd
+
+        'status'
+            process.exit status.status(rest, io, {theme: palette})
+
+        'add'
+            process.exit add.add(rest, io, {theme: palette})
+
+        'commit'
+            process.exit commit.commit(rest, io, {theme: palette})
+
+        'log'
+            process.exit log.log(rest, io, {theme: palette})
+
+        '--help'
+        '-h'
+        'help'
+            io.log USAGE
+            process.exit 0
+
+        undefined
+            io.log USAGE
+            process.exit 1
+
+        else
+            io.error "kit: unknown command '#{cmd}'"
+            io.error ''
+            io.error USAGE
+            process.exit 1
+
+export kit
