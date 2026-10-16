@@ -10,44 +10,14 @@
 #
 #    kit status                  the repository the shell is in
 #    kit status ~/a ~/s/kit      one report per path, in the order given
-#    kit status ~/s              the repositories one level below a plain directory
 #
-#  A path is resolved against the directory kit was started in, never against a
-#  path reported before it, so `kit status . ../config` reads the way it looks:
-#  here, and my sibling. With no arguments at all the shell's own directory is
-#  the only path; passing arguments replaces it rather than adding to it, so
-#  `kit status ~/s/kit` from a dirty ~/a says nothing about ~/a.
-#
-#  A directory that is not a repository is looked into one level down, so
-#  `kit status ~/s` says something about ~/s/kit rather than that ~/s is not a
-#  repository. One level is the whole of the rule: deeper than that is a guess
-#  about what a person meant. A path that is a repository is reported and not
-#  descended into, so a repository that happens to hold another one says only
-#  what it has to say.
-#
-#  Silence is per path, not per run: a clean repository says nothing, so a run over
-#  four of them shows only the ones with something to say — and a clean one that is
-#  ahead of or behind its upstream is one of them, since a branch waiting on a push
-#  or a pull has something to say. A path that cannot be reported — no such
-#  directory, no repository, no work tree — is named on stderr, the remaining paths
-#  are still reported, and the exit code is then 128, which is what git itself uses
-#  for "not a repository".
+#  A directory that is not a repository is looked into one level down.
 
-import fs from 'node:fs'
-import path from 'node:path'
-
+use fs path
 use ./git
 use ./render
 
 #  The repositories one level below `dir`, in name order; [] when there are none.
-#
-#  A child counts when it holds a .git entry, which is what makes a directory its
-#  own repository root rather than a corner of somebody else's — and a .git file
-#  counts as well as a .git directory, so worktrees and submodules are reported
-#  too. Dot entries are skipped: nothing under a dot directory is ever what a
-#  person meant by a path they typed. A symlink is followed rather than filtered,
-#  since a repository reached through one is still a repository, and there is no
-#  loop to fall into at one level.
 
 childRepos = (dir) ->
 
@@ -55,7 +25,7 @@ childRepos = (dir) ->
     try
         entries = fs.readdirSync dir, withFileTypes: true
     catch
-        #  unreadable, or not a directory at all: nothing below to find
+        # unreadable, or not a directory at all
         return []
 
     out = []

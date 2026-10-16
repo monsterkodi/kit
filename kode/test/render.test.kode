@@ -104,7 +104,7 @@ test 'renderStatus: a clean tree ahead of its upstream renders the header alone'
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
     assert.equal style.plain(out).split('\n').length, 1, 'the header, and nothing after it'
-    assert.match out, style.headerOf('~/s/kit', 'main ↑2')
+    assert.match out, style.headerOf('~/s/kit', '↑2')
     assert.equal style.headingLines(out).length, 0, 'a clean tree has no sections to list'
 
 test 'renderStatus: a clean tree behind its upstream renders the header alone' ->
@@ -121,7 +121,7 @@ test 'renderStatus: a clean tree behind its upstream renders the header alone' -
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
     assert.equal style.plain(out).split('\n').length, 1
-    assert.match out, style.headerOf('~/s/kit', 'main ↓3')
+    assert.match out, style.headerOf('~/s/kit', '↓3')
 
 test 'outOfSync: only a branch with commits on one side counts' ->
 
@@ -134,7 +134,7 @@ test 'outOfSync: only a branch with commits on one side counts' ->
 test 'renderStatus: dirty tree has branch header and all three sections' ->
 
     d =
-        branch: 'main'
+        branch: 'branch'
         ahead: 2
         behind: 0
         detached: false
@@ -144,7 +144,7 @@ test 'renderStatus: dirty tree has branch header and all three sections' ->
 
     out = render.renderStatus d, {theme: style.plainTheme}
 
-    assert.match out, /main\x20↑2/
+    assert.match out, /branch\x20↑2/
     assert.match out, style.headingOf('staged')
     assert.match out, style.headingOf('unstaged')
     assert.match out, style.headingOf('untracked')
@@ -179,33 +179,33 @@ test 'renderStatus: the header names the repository root, then the branch' ->
 
     d =
         root: '/home/kodi/s/kit'
-        branch: 'main'
+        branch: 'branch'
         staged: []
         unstaged: [{path: 'a', code: 'M'}]
         untracked: []
 
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
-    assert.match out, style.headerOf('~/s/kit', 'main')
+    assert.match out, style.headerOf('~/s/kit', 'branch')
 
 test 'renderStatus: the root identifies the repository, not the directory kit ran in' ->
 
     d =
         root: '/home/kodi/a'
-        branch: 'master'
+        branch: 'branch'
         staged: []
         unstaged: [{path: '../top.txt', code: 'M'}]
         untracked: []
 
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
-    assert.match out, style.headerOf('~/a', 'master')
+    assert.match out, style.headerOf('~/a', 'branch')
 
 test 'renderStatus: ahead and behind stay legible after the root' ->
 
     d =
         root: '/home/kodi/s/kit'
-        branch: 'main'
+        branch: 'branch'
         ahead: 2
         behind: 1
         staged: []
@@ -214,7 +214,7 @@ test 'renderStatus: ahead and behind stay legible after the root' ->
 
     header = style.plain(render.renderStatus(d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme}))).split('\n')[0]
 
-    assert.match header, style.headerOf('~/s/kit', 'main ↑2 ↓1')
+    assert.match header, style.headerOf('~/s/kit', 'branch ↑2 ↓1')
 
 test 'renderStatus: a detached head keeps its short oid beside the root' ->
 
@@ -234,37 +234,35 @@ test 'renderStatus: a root outside home is shown in full' ->
 
     d =
         root: '/tmp/kit-test-1'
-        branch: 'main'
+        branch: 'branch'
         staged: []
         unstaged: [{path: 'a', code: 'M'}]
         untracked: []
 
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
-    assert.match out, style.headerOf('/tmp/kit-test-1', 'main')
+    assert.match out, style.headerOf('/tmp/kit-test-1', 'branch')
 
 test 'renderStatus: a root that merely starts with home is not shortened' ->
 
-    #  /home/kodi-other must not become ~-other.
-
     d =
         root: '/home/kodi-other'
-        branch: 'main'
+        branch: 'branch'
         staged: []
         unstaged: [{path: 'a', code: 'M'}]
         untracked: []
 
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
-    assert.match out, style.headerOf('/home/kodi-other', 'main')
+    assert.match out, style.headerOf('/home/kodi-other', 'branch')
 
 test 'renderStatus: without a root the header is the branch alone' ->
 
-    d = branch: 'main', staged: [], unstaged: [{path: 'a', code: 'M'}], untracked: []
+    d = branch: 'branch', staged: [], unstaged: [{path: 'a', code: 'M'}], untracked: []
 
     out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
 
-    assert.equal style.plain(out).split('\n')[0], 'main'
+    assert.equal style.plain(out).split('\n')[0], 'branch'
 
 test 'abbreviateHome: a path under home loses the prefix' ->
 

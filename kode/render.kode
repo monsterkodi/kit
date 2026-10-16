@@ -7,16 +7,8 @@
 ###
 
 #  pure data -> styled string.
-#
-#  A regex literal may not contain a space — the lexer reads one as a separator,
-#  and hands back a regex full of commas — so every space in a pattern below is
-#  written \x20.
 
 use ./theme
-
-#  The palette the CLI built, read once when theme.kode loaded. Every renderer
-#  takes a palette as an argument and this is only the fallback for the one that
-#  is not handed one.
 
 defaultTheme = theme.theme
 
@@ -41,9 +33,7 @@ codeColour = (code, t) ->
         else ⮐ t.mod
 
 #  Render the ahead/behind suffix, e.g. "↑2 ↓1". Empty when in sync.
-#
-#  Ahead points up and behind points down: the arrows say where the local commits
-#  sit relative to the upstream's, not which way to fix it.
+#  Ahead points up and behind points down.
 
 renderTracking = (data={}, opt={}) ->
 
@@ -58,10 +48,6 @@ renderTracking = (data={}, opt={}) ->
     bits.join ' '
 
 #  True when the branch has commits the upstream lacks, or the reverse.
-#
-#  A branch with no upstream is never out of sync: there is nothing to compare it
-#  against, so a repository with no remote, or one that has never been pushed to,
-#  stays silent rather than inventing a comparison.
 
 outOfSync = (data={}) -> (data.ahead ? 0) > 0 or (data.behind ? 0) > 0
 
@@ -78,8 +64,7 @@ abbreviateHome = (path, home) ->
     p
 
 #  The branch header line. Reached when the tree is dirty, and also when the tree
-#  is clean but out of sync with the upstream — a clean branch that is waiting on
-#  a push or a pull has something to say.
+#  is clean but out of sync with the upstream.
 
 renderBranch = (data, opt={}) ->
 
@@ -88,6 +73,7 @@ renderBranch = (data, opt={}) ->
 
     name = if data.detached then "detached@#{String(data.oid ? '').slice(0, 7)}" else data.branch
     label = name ? 'unknown'
+    label = '' if label in ['main' 'master']
     tracking = renderTracking data, {theme: t}
 
     branch = if tracking then "#{t.branch(label)} #{tracking}" else t.branch(label)
