@@ -1,14 +1,9 @@
 var colourWanted, createTheme
 
 
-colourWanted = function ()
-{
-    return !process.env.NO_COLOR && process.env.TERM !== 'dumb'
-}
-
 createTheme = function (enabled)
 {
-    var bg, chip, fg, onChip, wrap
+    var bg, fg, wrap
 
     wrap = function (open, close)
     {
@@ -25,8 +20,6 @@ createTheme = function (enabled)
     {
         return wrap(`48;5;${code}`,49)
     }
-    chip = bg(25)
-    onChip = fg(226)
     return {enabled:enabled,dim:wrap(2,22),bold:wrap(1,22),add:fg(114),del:fg(203),mod:fg(179),untracked:fg(245),headStaged:fg(114),headCommitted:fg(41),headUnstaged:fg(179),headUntracked:fg(245),ahead:fg(114),behind:fg(203),logHash:fg(245),logDate:fg(39),logName:fg(41),branch:function (s)
     {
         if (enabled)
@@ -39,13 +32,18 @@ createTheme = function (enabled)
         }
     },repoPath:function (s)
     {
-        return chip(onChip(` ${s} `))
+        return bg(25)(fg(226)(` ${s} `))
     }}
+}
+
+colourWanted = function ()
+{
+    return !process.env.NO_COLOR && process.env.TERM !== 'dumb'
 }
 export default {
     createTheme:createTheme,
     theme:createTheme(colourWanted())
 }
 
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidGhlbWUuanMiLCJzb3VyY2VzIjpbIi4uL2tvZGUvdGhlbWUua29kZSJdLCJtYXBwaW5ncyI6Ijs7O0FBUUE7O1lBQXNCLFFBQVEsSUFBSSxZQUFhLFFBQVEsSUFBSSxTQUFROzs7QUFFbkU7Ozs7SUFFSTs7OzttQkFBNEIsT0FBVSxvQkFBb0IsUUFBUSxXQUFXLFdBQWM7OztJQUMzRjs7ZUFBYSxhQUFhLE9BQVE7O0lBQ2xDOztlQUFhLGFBQWEsT0FBUTs7SUFFbEMsT0FBUyxHQUFHO0lBQ1osU0FBUyxHQUFHO1lBRVosUUFBZ0IsUUFFaEIsSUFBZ0IsS0FBSyxFQUFFLElBQ3ZCLEtBQWdCLEtBQUssRUFBRSxJQUV2QixJQUFnQixHQUFHLEtBQ25CLElBQWdCLEdBQUcsS0FDbkIsSUFBZ0IsR0FBRyxLQUNuQixVQUFnQixHQUFHLEtBRW5CLFdBQWdCLEdBQUcsS0FDbkIsY0FBZ0IsR0FBRyxJQUNuQixhQUFnQixHQUFHLEtBQ25CLGNBQWdCLEdBQUcsS0FFbkIsTUFBZ0IsR0FBRyxLQUNuQixPQUFnQixHQUFHLEtBRW5CLFFBQWdCLEdBQUcsS0FDbkIsUUFBZ0IsR0FBRyxJQUNuQixRQUFnQixHQUFHLElBRW5COztZQUFrQjs7OENBQXFDOzs7O21CQUE0QixPQUFPOztNQUMxRjs7ZUFBZSxLQUFLLFdBQVc7Ozs7SUFHL0IsWUFBYTtJQUNiLE1BQU8sWUFBWSJ9
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidGhlbWUuanMiLCJzb3VyY2VzIjpbIi4uL2tvZGUvdGhlbWUua29kZSJdLCJtYXBwaW5ncyI6Ijs7O0FBUUE7Ozs7SUFFSTs7OzttQkFBNEIsT0FBVSxvQkFBb0IsUUFBUSxXQUFXLFdBQWM7OztJQUMzRjs7ZUFBZSxhQUFhLE9BQVE7O0lBQ3BDOztlQUFlLGFBQWEsT0FBUTs7WUFFcEMsUUFBZ0IsUUFFaEIsSUFBZ0IsS0FBSyxFQUFFLElBQ3ZCLEtBQWdCLEtBQUssRUFBRSxJQUV2QixJQUFnQixHQUFHLEtBQ25CLElBQWdCLEdBQUcsS0FDbkIsSUFBZ0IsR0FBRyxLQUNuQixVQUFnQixHQUFHLEtBRW5CLFdBQWdCLEdBQUcsS0FDbkIsY0FBZ0IsR0FBRyxJQUNuQixhQUFnQixHQUFHLEtBQ25CLGNBQWdCLEdBQUcsS0FFbkIsTUFBZ0IsR0FBRyxLQUNuQixPQUFnQixHQUFHLEtBRW5CLFFBQWdCLEdBQUcsS0FDbkIsUUFBZ0IsR0FBRyxJQUNuQixRQUFnQixHQUFHLElBRW5COztZQUFrQjs7OENBQXFDOzs7O21CQUE0QixPQUFPOztNQUMxRjs7ZUFBZSxHQUFHLElBQUksR0FBRyxTQUFTOzs7O0FBRXRDOztZQUFzQixRQUFRLElBQUksWUFBYSxRQUFRLElBQUksU0FBUTs7O0lBRy9ELFlBQWE7SUFDYixNQUFPLFlBQVkifQ==
 //# sourceURL=file://kode/theme.kode

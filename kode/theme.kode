@@ -6,16 +6,11 @@
    ███     ███   ███  ████████  ███   ███  ████████
 ###
 
-colourWanted = -> not process.env.NO_COLOR and process.env.TERM != 'dumb'
-
 createTheme = enabled ->
 
     wrap = open close -> (s) -> String(if enabled ➜ "\u001b[#{open}m#{s}\u001b[#{close}m" else s)
-    fg = code -> wrap("38;5;#{code}", 39)
-    bg = code -> wrap("48;5;#{code}", 49)
-
-    chip   = bg 25
-    onChip = fg 226
+    fg   = code -> wrap("38;5;#{code}", 39)
+    bg   = code -> wrap("48;5;#{code}", 49)
 
     enabled:        enabled
 
@@ -40,7 +35,9 @@ createTheme = enabled ->
     logName:        fg(41)
 
     branch:   s -> if enabled ➜ "\u001b[1m\u001b[38;5;39m#{s}\u001b[39m\u001b[0m" else String(s)
-    repoPath: s -> chip(onChip(" #{s} "))
+    repoPath: s -> bg(25)(fg(226)(" #{s} "))
+
+colourWanted = -> not process.env.NO_COLOR and process.env.TERM != 'dumb'
 
 export
     createTheme: createTheme
