@@ -13,11 +13,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import cp from 'node:child_process'
-
+use fs os path child_process
 use ../status
 use ../add
 use ../commit
@@ -30,10 +26,6 @@ newRepo = (where) ->
     dir = if own then fs.mkdtempSync(path.join(os.tmpdir(), 'kit-test-')) else where
     if not own then fs.mkdirSync(dir, {recursive: true})
 
-    #  Identity must come from the environment, not -c flags: this machine has
-    #  GIT_AUTHOR_NAME/GIT_AUTHOR_EMAIL exported, and they take precedence over
-    #  `git -c user.name=…`. Set both so tests do not depend on ambient config.
-
     env = Object.assign {}, process.env, {
         GIT_AUTHOR_NAME: 'test'
         GIT_AUTHOR_EMAIL: 't@e.st'
@@ -42,18 +34,13 @@ newRepo = (where) ->
     }
 
     git = (args...) ->
-        cp.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
+        child_process.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
             cwd: dir
             encoding: 'utf8'
             env: env
         }
 
     git 'init', '-q'
-
-    #  The initial branch name is machine state, not kit's: git takes it from
-    #  init.defaultBranch (this machine: main), and falls back to master when that
-    #  is unset. So the name is read back from the repo rather than assumed, and
-    #  tests assert against it — otherwise every branch-name assertion here breaks
 
     branch = git('symbolic-ref', '--short', 'HEAD').trim()
     assert.ok branch, 'git init should leave a named branch to read back'
@@ -66,18 +53,6 @@ newRepo = (where) ->
     env: env
     branch: branch
     cleanup: cleanup
-
-#  A capturing io that always hands the command a plain palette.
-#
-#  Without the palette argument these commands fall back to the default palette,
-#  which is coloured whenever the environment has not forbidden it — and the suite
-#  no longer sets NO_COLOR, so the runner can stay coloured. The theme is attached
-#  here rather than at each of the 47 call sites, because every one of them wants
-#  the same thing and the ones that did not would silently start asserting on
-#  escape sequences.
-#
-#  The callbacks are named before the object rather than inlined: a function
-#  literal inside an object literal does not lex.
 
 sink = ->
 
@@ -107,20 +82,13 @@ withCwd = (dir, fn) ->
     finally
         process.chdir prev
 
-#  A repository that has somewhere to push, plus the bare origin it pushes to.
-#
-#  newRepo alone cannot exercise ahead/behind: a repository with no remote has no
-#  upstream to compare against, so branch.ab never arrives and kit has nothing to
-#  report. `other` is a second clone used to move the remote without touching
-#  `local`, which is the only way to make a working tree behind rather than ahead.
-
 withRemote = ->
 
     parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-remote-')
     origin = path.join parent, 'origin.git'
 
     fs.mkdirSync origin
-    cp.execFileSync 'git', ['init' '-q' '--bare' '.'], {cwd: origin, stdio: 'pipe'}
+    child_process.execFileSync 'git', ['init' '-q' '--bare' '.'], {cwd: origin, stdio: 'pipe'}
 
     local = newRepo path.join(parent, 'local')
     local.git 'remote', 'add', 'origin', origin
@@ -133,9 +101,9 @@ withRemote = ->
 
     other = ->
         dir = path.join parent, 'other'
-        cp.execFileSync 'git', ['clone' '-q' origin dir], {encoding: 'utf8', env: local.env}
+        child_process.execFileSync 'git', ['clone' '-q' origin dir], {encoding: 'utf8', env: local.env}
         git = (args...) ->
-            cp.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
+            child_process.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
                 cwd: dir
                 encoding: 'utf8'
                 env: local.env
@@ -232,9 +200,6 @@ test 'status: a clean tree behind its remote prints the header alone' ->
         fs.rmSync(w.parent, {recursive: true, force: true})
 
 test 'status: a remote that has never been pushed to stays silent' ->
-
-    #  A remote is configured but no upstream ref exists, so there is nothing to
-    #  be out of sync with. git emits branch.upstream and no branch.ab at all.
 
     r = newRepo()
     try
@@ -531,10 +496,6 @@ test 'commit: fully clean tree is silent' ->
 
 test 'commit: no-op from a subdirectory is silent, not git prose' ->
 
-    #  Regression: `git add .` from a subdirectory cannot reach outside it, so
-    #  commit has nothing staged and git blames "untracked files present" — even
-    #  though the status tree printed a moment earlier already listed them.
-
     r = newRepo()
     try
         fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
@@ -560,9 +521,6 @@ test 'all commands: not a git repository exits 128' ->
 
     dir = fs.mkdtempSync path.join(os.tmpdir(), 'kit-norepo-')
     try
-        #  Named before the list, because an arrow function inside an array
-        #  literal does not lex.
-
         runStatus = (io) -> status.status([], io, io.opts)
         runAdd = (io) -> add.add([], io, io.opts)
         runCommit = (io) -> commit.commit(['x'], io, io.opts)
@@ -745,7 +703,7 @@ test 'status: a bare repository and a .git directory are not work trees' ->
     try
         bare = path.join parent, 'bare.git'
         fs.mkdirSync bare
-        cp.execFileSync 'git', ['init' '-q' '--bare' '.'], {cwd: bare, stdio: 'pipe'}
+        child_process.execFileSync 'git', ['init' '-q' '--bare' '.'], {cwd: bare, stdio: 'pipe'}
         repo = newRepo path.join(parent, 'repo')
 
         for p in [bare, path.join(repo.dir, '.git')]
@@ -757,9 +715,6 @@ test 'status: a bare repository and a .git directory are not work trees' ->
         throw err
     finally
         fs.rmSync(parent, {recursive: true, force: true})
-
-#  A plain directory that holds repositories rather than being one, the shape
-#  ~/s has: nothing to report at the top, everything to report one level down.
 
 nest = ->
 
@@ -974,10 +929,6 @@ test 'log: a bare number limits to that many commits' ->
         lines = io.text().split '\n'
         assert.equal lines.length, 2, 'a commit count, not a line count'
 
-        #  The count still selects the two *most recent* commits — reversing the
-        #  display must not turn `kit log 2` into the two oldest. git applies -n
-        #  before --reverse, so the limit is unaffected by the ordering.
-
         assert.match lines[0], /commit\x204$/, 'the older of the two most recent'
         assert.match lines[1], /commit\x205$/, 'the newest is last'
 
@@ -1029,7 +980,7 @@ test 'log: shows the author name without the email address' ->
             GIT_AUTHOR_EMAIL: 't@e.st'
         }
 
-        cp.execFileSync 'git', ['commit' '-qm' 'authored'], {cwd: r.dir, encoding: 'utf8', env}
+        child_process.execFileSync 'git', ['commit' '-qm' 'authored'], {cwd: r.dir, encoding: 'utf8', env}
 
         io = sink()
         withCwd(r.dir, -> log.log([], io, io.opts))
@@ -1051,7 +1002,7 @@ test 'log: date is the short absolute form without seconds' ->
 
         env = Object.assign {}, r.env, {GIT_AUTHOR_DATE: '2020-01-02T03:04:05 +0000'}
 
-        cp.execFileSync 'git', ['commit' '-qm' 'dated'], {cwd: r.dir, encoding: 'utf8', env}
+        child_process.execFileSync 'git', ['commit' '-qm' 'dated'], {cwd: r.dir, encoding: 'utf8', env}
 
         io = sink()
         withCwd(r.dir, -> log.log([], io, io.opts))
@@ -1068,10 +1019,6 @@ test 'log: date is the short absolute form without seconds' ->
     finally
         r.cleanup()
 
-#  A run of commits written on chosen days, at chosen times so the order is not a
-#  coincidence of the clock. git renders the date in the local zone, so the tests
-#  below read the expectation back out of a Date rather than assuming one.
-
 datedRepo = ->
 
     r = newRepo()
@@ -1080,7 +1027,7 @@ datedRepo = ->
         fs.writeFileSync path.join(r.dir, "#{msg}.txt"), "#{msg}\n"
         r.git 'add', '-A'
         env = Object.assign {}, r.env, {GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso}
-        cp.execFileSync 'git', ['commit' '-qm' msg], {cwd: r.dir, encoding: 'utf8', env}
+        child_process.execFileSync 'git', ['commit' '-qm' msg], {cwd: r.dir, encoding: 'utf8', env}
 
     dated 'first', '2020-05-04T09:15:00 +0000'
     dated 'second', '2020-05-04T11:45:00 +0000'
@@ -1088,13 +1035,7 @@ datedRepo = ->
 
     r
 
-#  The date column, between the short hash and the author: the hash is seven
-#  characters and one space wide.
-
 dateOf = (line) -> line.slice 8, 20
-
-#  The date as git prints it here: "%b %e %H:%M", in the local zone. The month
-#  is spelled out rather than derived, because %b is the locale's business.
 
 localDate = (month, iso, minutes) ->
 
@@ -1102,13 +1043,7 @@ localDate = (month, iso, minutes) ->
     day = String(d.getDate()).padStart 2, ' '
     "#{month} #{day} #{String(d.getHours()).padStart(2, '0')}:#{minutes}"
 
-#  A date whose calendar part has been blanked, which is to say: the time kept,
-#  the rest spaces. Slicing the time off the date it belongs to is what keeps
-#  this independent of the zone the machine happens to be in.
-
 blanked = (date) -> ' '.repeat(date.length - 5) + date.slice(-5)
-
-#  The three commits datedRepo() writes, as this machine's zone spells them.
 
 FIRST = localDate 'May', '2020-05-04T09:15:00Z', '15'
 SECOND = localDate 'May', '2020-05-04T11:45:00Z', '45'

@@ -48,7 +48,7 @@ commit = (words, io=console, opt={}) ->
         return 0
 
     #  Nothing reaching the index is a no-op, not a problem worth narrating: the
-    #  status tree printed just above already showed the whole repository state,
+    #  status tree printed just above already showed the whole repository state.
 
     if git.stagedCount() == 0 then return r.code
 

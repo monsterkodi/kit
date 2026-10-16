@@ -9,9 +9,6 @@
 #  `kit log` width handling and the --long layout.
 #
 #  All pure: renderLog takes the width as data, so no TTY and no git are needed.
-#
-#  A regex literal may not contain a space — the lexer reads one as a separator —
-#  so every space below is \x20.
 
 import test from 'node:test'
 import assert from 'node:assert/strict'

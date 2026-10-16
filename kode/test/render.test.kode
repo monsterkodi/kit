@@ -74,10 +74,6 @@ test 'parseStatusV2: filename with a space is one path' ->
 ███████      ███        ███     ███████  ████████
 ###
 
-#  Style-tolerant assertions live in ./style.kode: the branch header and the group
-#  markers are the two parts of kit's output that get restyled, so the tests
-#  below pin what they mean and leave how they look open.
-
 test 'renderStatus: clean tree renders nothing' ->
 
     d = branch: 'main', staged: [], unstaged: [], untracked: []
@@ -167,13 +163,6 @@ test 'renderBranch: detached head shows short oid' ->
     out = render.renderBranch {detached: true, oid: 'abcdef1234567890'}, {theme: style.plainTheme}
 
     assert.match out, /detached@abcdef1/
-
-#  The branch header: which repository, then which branch.
-#
-#  Every assertion here goes through headerOf, so none of them can tell a leading
-#  space from three, a pipe from a space, or one colour from another. What they
-#  pin is the content and the order — and that is deliberate, because the header
-#  is the part of kit's output most likely to be restyled.
 
 test 'renderStatus: the header names the repository root, then the branch' ->
 
@@ -294,13 +283,6 @@ test 'renderTracking: in-sync renders empty' ->
  ███████   ███████   ███   ███  ███   ███  ███     ███        ███     ████████  ███████              █      ███  ████████  ██     ██
 ###
 
-#  committed view (kit commit's pre-commit status)
-#
-#  `kit commit` renders the state it is about to commit. That snapshot is
-#  exactly the commit's contents, so the heading says "committed" rather than
-#  "staged", and the status letters are lowercased so the meaning survives
-#  skipping the heading. Uppercase is kept everywhere else.
-
 mixedTree = ->
     branch: 'main'
     ahead: 0
@@ -349,9 +331,6 @@ test 'renderStatus: committed view keeps untracked question mark' ->
     assert.match out, /\?\x20notes\.tmp/, 'the ? marker is unchanged'
 
 test 'renderStatus: a file in both committed and unstaged renders in both' ->
-
-    #  Not a bug: a file staged, then modified again, is in the commit *and*
-    #  still has loose changes in the tree.
 
     d =
         branch: 'main'

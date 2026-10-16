@@ -6,26 +6,13 @@
  ███████   ███     ███
 ###
 
-###
- ███████   ███████   ███      ███      ████████   ███████  █████████
-███       ███   ███  ███      ███      ███       ███          ███   
-███       ███   ███  ███      ███      ███████   ███          ███   
-███       ███   ███  ███      ███      ███       ███          ███   
- ███████   ███████   ███████  ███████  ████████   ███████     ███   
-###
-
-#  the "collect" layer.
-#
 #  Runs git and returns plain data plus the exit code. Nothing here formats
 #  output for humans; that is render.kode's job. Keeping the seam sharp is what
 #  lets the renderers be tested without a repository.
 #
-#  Porcelain is used everywhere, never human-readable prose, because porcelain
-#  is the format git guarantees to keep stable across versions and locales.
+#  Porcelain is used everywhere, never human-readable prose.
 
-import cp from 'node:child_process'
-
-#  Run git and capture everything about the invocation.
+use child_process
 
 MAXBUFFER = 64 * 1024 * 1024
 
@@ -45,7 +32,7 @@ run = (args, opt={}) ->
 
     opts = Object.assign opts, opt
 
-    r = cp.spawnSync 'git', args, opts
+    r = child_process.spawnSync 'git', args, opts
 
     if r.error
         ⮐ code: 1, ok: false, stdout: '', stderr: String(r.error.message)
@@ -59,7 +46,7 @@ capture = (args) ->
         maxBuffer: MAXBUFFER
         env: gitEnv()
 
-    cp.execFileSync 'git', args, opts
+    child_process.execFileSync 'git', args, opts
 
 at = (dir) -> if dir then {cwd: dir} else {}
 
@@ -116,8 +103,6 @@ parseStatusV2 = (raw) ->
             continue
 
         if rec.startsWith '# branch.ab'
-            #  \x20 rather than a literal space: a regex with a space in it is not
-            #  a regex to the kode lexer, which reads the space as a separator.
             m = rec.slice('# branch.ab '.length).trim().match(/^\+(\d+)\x20-(\d+)$/)
             if m
                 out.ahead = Number(m[1])
@@ -139,9 +124,6 @@ parseStatusV2 = (raw) ->
 
             parts = rest.split ' '
             xy = parts[0]
-
-            #  mH mI mW hH hI then path; -z means the path is everything after
-            #  the seventh space, so join the remainder rather than assume index.
 
             path = parts.slice(7).join ' '
             x = xy[0]
@@ -175,8 +157,7 @@ showPrefix = (dir) ->
     if not r.ok then ⮐ ''
     r.stdout.trim()
 
-#  The absolute path of the repository root containing `dir`, or '' when there is
-#  none.
+#  The absolute path of the repository root containing `dir`, or '' when there is none.
 
 showToplevel = (dir) ->
 

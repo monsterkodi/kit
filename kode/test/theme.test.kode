@@ -6,20 +6,6 @@
    ███     ███   ███  ████████  ███   ███  ████████
 ###
 
-#  the colour palette as a value rather than as ambient state
-
-#  Colour used to be decided once, when theme.js was first imported, by reading
-#  NO_COLOR out of the environment. That made the environment the only switch, so
-#  the test suite had to run under NO_COLOR=1 to get readable assertions — and
-#  that also stripped colour from node's own test runner, which reports colour
-#  from the same variable. One flag, two unrelated consequences.
-#
-#  So the palette is now built by a function of a boolean, and the renderers take
-#  it as an argument. The environment decides only once, where the CLI starts,
-#  and the tests below hand the renderers a plain palette directly. These tests
-#  pin that separation: a palette is a value, and the environment no longer
-#  reaches into rendering once the CLI has made its choice.
-
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -28,25 +14,14 @@ use ../render
 use ../theme
 use ./style
 
-#  Global, so stripping removes every sequence rather than the first: a single
-#  palette call wraps the text in two sequences, and a non-global replace leaves
-#  the closing one behind and fails every comparison downstream.
-
 SGR = /\u001b\[[0-9;]*m/g
 
 strip = (s) -> s.replace SGR, ''
-
-#  Sets the variable, or removes it when handed undefined: assigning undefined
-#  would put the string 'undefined' there, which reads as a colour request.
 
 setNoColor = (value) ->
 
     if value == undefined then delete process.env.NO_COLOR
     else process.env.NO_COLOR = value
-
-#  Restores NO_COLOR after the callback, so one test cannot decide another's.
-#  Kode has no try/finally without a catch, and the restore is written out on
-#  both paths rather than swallowed: a throw here must still reach the runner.
 
 withNoColor = (value, fn) ->
 
@@ -81,9 +56,6 @@ test 'createTheme: an enabled palette colours, and passes text through' ->
     t = theme.createTheme true
     assert.equal t.enabled, true
 
-    # assert.doesNotMatch takes a regex and resets lastIndex between calls, so
-    # the shared /g pattern is not safe to reuse as a matcher here.
-
     hasColour = (s) -> (new RegExp(SGR)).test s
 
     assert.ok hasColour(t.add('x')), 'add colours'
@@ -98,11 +70,6 @@ test 'createTheme: both palettes render the same text once stripped' ->
 
     for name in ['add' 'del' 'branch' 'repoPath' 'dim' 'logHash']
         assert.equal strip(on[name]('x')), strip(off[name]('x')), name
-
-#  The default palette the CLI uses is still the environment's answer, so `kit`
-#  itself behaves exactly as before: colour on a terminal, plain when piped or
-#  when NO_COLOR is set. This is the one place the environment is consulted, and
-#  it is consulted when the module is first loaded rather than on every call.
 
 test 'theme: the default palette follows NO_COLOR as loaded' ->
 
@@ -121,11 +88,6 @@ test 'theme: the default palette follows NO_COLOR as loaded' ->
 ███   ███  ███       ███  ████  ███   ███  ███       ███   ███  ███       ███   ███       ███
 ███   ███  ████████  ███   ███  ███████    ████████  ███   ███  ████████  ███   ███  ███████ 
 ###
-
-#  the point of the refactor: rendering must not consult the environment at all.
-#  Each case sets NO_COLOR to the opposite of what a reader would expect and
-#  asserts the output is unchanged, so a renderer that reached back into
-#  process.env would fail rather than quietly pass.
 
 tree = ->
     raw = [
@@ -154,11 +116,6 @@ test 'renderers: output does not depend on NO_COLOR once a palette is passed' ->
     for key in Object.keys cases
         assert.equal set[key], unset[key], "#{key} must not read NO_COLOR"
         assert.doesNotMatch unset[key], SGR, "#{key} must be plain when handed a plain palette"
-
-#  A plain palette stays plain even when the environment says colour is wanted,
-#  and an enabled palette stays coloured even when it says the opposite. Both
-#  directions, because a one-way test passes an implementation that ignores its
-#  argument and always returns the default.
 
 test 'renderers: the palette argument wins over the environment' ->
 

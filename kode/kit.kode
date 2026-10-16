@@ -36,12 +36,6 @@ io =
     error: err
 
 #  The one place the environment decides colour.
-#
-#  Colour is only wanted when something is going to look at it, so a pipe or a
-#  redirected file gets plain text and a terminal gets the palette. Checking
-#  isTTY here rather than in theme.kode keeps the decision at the edge:
-#  everything below receives a palette as an argument, and the test suite hands
-#  the renderers a plain one directly instead of asking the environment for it.
 
 colour = Boolean(process.stdout.isTTY) and not process.env.NO_COLOR and process.env.TERM != 'dumb'
 

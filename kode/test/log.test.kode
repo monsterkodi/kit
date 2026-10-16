@@ -7,13 +7,6 @@
 ###
 
 #  `kit log` parsing and rendering.
-#
-#  parseLog is tested against the exact byte shape git produces (verified with
-#  od -c), because the record separator is the one thing here that surprised
-#  the implementation. Rendering tests need no git at all.
-#
-#  A regex literal may not contain a space — the lexer reads one as a separator —
-#  so every space below is \x20.
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -24,11 +17,6 @@ use ../theme
 use ./style
 
 #  One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
-#
-#    \0 hash \0 date \0 name \0 subject \0 \n
-#
-#  The leading %x00 makes field 0 empty; the trailing one pushes git's own
-#  newline into a field of its own. Verified with od -c on git 2.55.
 
 record = (h, d, n, s) -> "\0#{h}\0#{d}\0#{n}\0#{s}\0\n"
 
@@ -167,14 +155,7 @@ test 'renderLog: subject column aligns across rows regardless of name length' ->
 
 test 'renderLog: colours each column differently' ->
 
-    #  An enabled palette is passed in, so this asserts on colour unconditionally.
-    #  It used to return early under NO_COLOR, which meant the only test pinning
-    #  the palette never ran as part of `npm test`.
-
     out = render.renderLog([commit()], {theme: theme.createTheme(true)})
-
-    #  The colour code is the last number in the sequence: 38;5;245 is grey, and
-    #  the 38 is the "set foreground" selector rather than part of the colour.
 
     codes = out.match(/\u001b\[38;5;\d+m/g).map((s) -> s.match(/\d+(?=m$)/)[0])
 
@@ -193,15 +174,6 @@ test 'renderLog: subject is never truncated or recoloured' ->
     out = render.renderLog([commit({subject})], {width: 200})
 
     assert.ok out.endsWith(subject), 'subject reaches the end of the line verbatim'
-
-#  A date that repeats the line above it is blanked, so a run of commits reads
-#  as one block rather than a column of the same month repeated.
-#
-#  The rule runs over whole fields, left to right: blank the month when it is
-#  the same month as the commit above, and the day too when it is the same day.
-#  A different month ends the run — so the day is written out again, which is
-#  why "Oct 9" does not make "Nov 9" print a bare 9. The time is a value, not a
-#  grouping, and is always written.
 
 dated = (dates...) ->
 
@@ -231,17 +203,11 @@ test 'collapseDates: a new month is written out in full again' ->
 
 test 'collapseDates: a repeated day number is kept whole, not cut into the digits' ->
 
-    #  'Nov 10' -> 'Nov 13' shares four characters but only the month is a field,
-    #  so the day reads 13 rather than a stranded 3.
-
     out = render.collapseDates dated('Nov  9 00:00', 'Nov 10 10:10', 'Nov 13 12:11')
 
     assert.deepEqual out, ['Nov  9 00:00', '    10 10:10', '    13 12:11']
 
 test 'collapseDates: the comparison is against the date above, not the line as printed' ->
-
-    #  Three days running: once the month is gone from the display it must still
-    #  count as the same month for the commit that follows it.
 
     out = render.collapseDates dated('Oct  1 14:00', 'Oct  1 15:00', 'Oct  2 09:30')
 

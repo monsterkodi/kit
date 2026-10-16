@@ -25,22 +25,10 @@
 use ../theme
 
 #  Strip SGR escape sequences.
-#
-#  The suite runs with a plain palette and no NO_COLOR in the environment, so
-#  there should be nothing to strip. Kept anyway, for the tests that deliberately
-#  render with colour enabled: they need the text without the escapes to compare
-#  against, and a test that could only pass in one environment would be a test
-#  that lies half the time.
 
 plain = (s) -> s.replace(/\u001b\[[0-9;]*m/g, '')
 
 #  The palette the render tests assert against.
-#
-#  The renderers take a palette as an argument now, so a test asks for plain
-#  output by handing over a plain palette rather than by setting NO_COLOR. That
-#  distinction is the point: NO_COLOR is a property of the environment and also
-#  governs node's test runner, so a suite that needed it for its own assertions
-#  could not have a coloured runner.
 
 plainTheme = theme.createTheme false
 
@@ -49,22 +37,7 @@ GAP    = '[\\s\\p{P}\\p{S}]+'
 
 escape = (s) -> s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
 
-#  The header line, whole: the root, filler, a gap, then the branch.
-#
-#  Matches "~/s/kit main", " ~/s/kit │ main" and "  ~/s/kit   main ↑2 ↓1" alike
-#  — none of those are pinned. Rejects a wrong path, a wrong branch, the two in
-#  the wrong order, or anything else sharing the line.
-
 headerOf = (root, branch) -> (new RegExp "^#{FILLER}#{escape(root)}#{GAP}#{escape(branch)}$", 'mu')
-
-#  A group heading: a marker, then the word. Takes a pattern rather than a word,
-#  so a caller can ask about one group ("staged") or about a set
-#  ("committed|staged").
-#
-#  The marker is not named, so ●, •, "└" or "|" can each replace it without a
-#  test noticing. What this does pin is that a marker exists at all: \S+
-#  requires one, so a renderer that dropped the marker fails loudly instead of
-#  passing quietly.
 
 headingOf = (words) -> (new RegExp "^\\S+ (?:#{words})\\s*$", 'm')
 

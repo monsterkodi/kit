@@ -218,11 +218,6 @@ fitName = (name, width=NAME_WIDTH) ->
 
 #  Split one rendered date into its month, its day and the column the time
 #  starts in: "Oct  1 14:00" -> { month: 'Oct', day: '1', timeStart: 7 }.
-#
-#  The format is "%b %e %H:%M" and git pads the day with a leading space, so the
-#  calendar part is whatever precedes the last space. A string that is not a date
-#  at all still yields something rather than throwing: the whole thing is the
-#  month, and there is no time to speak of.
 
 splitDate = (date) ->
 
@@ -236,19 +231,7 @@ splitDate = (date) ->
     day: day
     timeStart: timeStart
 
-#  Blank the part of each date that the line above it already says.
-#
-#  The comparison runs over whole fields, left to right: the month goes when the
-#  month repeats, and the day with it when the day repeats too. A new month ends
-#  the run, so "Nov 9" after "Oct 9" is written out in full — sharing a day
-#  number is not sharing a date. The time is a value rather than a grouping, so
-#  it is never blanked.
-#
-#  Blank is always spaces, never a shorter string: the columns do not move when
-#  a date is dropped, and the width kit promised stays the width it emits.
-#
-#  Only `kit log` collapses. `-l` reads every commit on its own, so the dates
-#  stay where the reader expects to find them.
+# Blank the part of each date that the line above it already says.
 
 collapseDates = (commits) ->
 

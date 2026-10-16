@@ -25,8 +25,7 @@ childRepos = (dir) ->
     try
         entries = fs.readdirSync dir, withFileTypes: true
     catch
-        # unreadable, or not a directory at all
-        return []
+        return [] # unreadable, or not a directory at all
 
     out = []
 
