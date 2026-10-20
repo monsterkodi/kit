@@ -5,9 +5,5 @@
   "type": "module",
   "license": "Unlicense",
   "bin": { "kit": "./bin/kit" },
-  "scripts": {
-    "build": "node ${KODE:-../ked/js/kode/kode.js} -o js kode/*.kode && node ${KODE:-../ked/js/kode/kode.js} -o js/test kode/test/*.kode",
-    "test": "node js/runtests.js"
-  },
   "engines": { "node": ">=20" }
 }
