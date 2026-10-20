@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+
+import kk from '/home/kodi/s/ked/js/konrad/kk.js'
+kk()
