@@ -27,7 +27,7 @@ kit — a git wrapper
   kit add [path…]         stage changes, then show what was staged.
   kit commit [words…]     stage, then commit using the words as the message.
   kit log [n] [-l]        one line per commit, -l the full message, n the count.
-                          -f lists the files it touched, -d shows its patch.
+                          -f lists the files it touched.
   kit diff [id…]          the staged and unstaged changes, or the diff of one commit:
                           -1 is the last commit, a ref names one, paths narrow it down.
 """

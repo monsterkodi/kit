@@ -6,18 +6,17 @@
 ███████   ███████    ███████
 ###
 
-# `kit log [-l|--long] [-f|--files] [-d|--diff] [n] [path…]`
+# `kit log [-l|--long] [-f|--files] [n] [path…]`
 #
 #    kit log          one line per commit, truncated to the terminal width
 #    kit log 10       the 10 most recent commits
 #    kit log -l       the full message, wrapped under the subject column
 #    kit log -f       the files every commit touched, under the message
-#    kit log -d       the patch of every commit, under the message
 #    kit log -l 10    both
 #
-# The arguments behind -f and -d are the paths the listing and the patches are
-# limited to, and they are the ones `kit diff` takes: a file type such as
-# kode or .kode, or the name of a file.
+# The arguments behind -f are the paths the listing is limited to, and they
+# are the ones `kit diff` takes: a file type such as kode or .kode, or the
+# name of a file.
 
 use ./git
 use ./render
@@ -28,7 +27,6 @@ parseArgs = (args) ->
 
     long = false
     files = false
-    patch = false
     numbers = []
     paths = []
     filtering = false
@@ -44,19 +42,14 @@ parseArgs = (args) ->
             filtering = true
             continue
 
-        if arg in ['-d' '--diff']
-            patch = true
-            filtering = true
-            continue
-
         #  The count is the log's, wherever it stands.
 
         if (/^\d+$/).test arg
             numbers.push arg
             continue
 
-        #  Everything behind -f or -d belongs to the diff: the files the
-        #  listing and the patches are limited to.
+        #  Everything behind -f belongs to the diff: the files the listing is
+        #  limited to.
 
         if filtering
             paths.push arg
@@ -71,7 +64,6 @@ parseArgs = (args) ->
     count: if numbers.length then Number(numbers[0]) else null
     long: long
     files: files
-    patch: patch
     paths: paths
 
 #  Terminal width in columns, or a sane fallback.
@@ -82,8 +74,7 @@ terminalWidth = (out=process.stdout) ->
     if Number.isInteger(cols) and cols > 0 then ⮐ cols
     render.DEFAULT_WIDTH
 
-#  The paths the files and the patches are limited to, as the diff command has
-#  them.
+#  The paths the files are limited to, as the diff command has them.
 
 filterPaths = (args) ->
 
@@ -129,9 +120,7 @@ log = (args, io=console, env={}) ->
     res = git.collectLog parsed.count, {
         long: parsed.long
         files: parsed.files
-        patch: parsed.patch
         paths: paths
-        colour: t.enabled
     }
 
     if res.error

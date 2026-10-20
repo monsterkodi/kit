@@ -1161,43 +1161,6 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
 
         r.cleanup()
 
-    ▸ -d gives every commit its patch
-
-        r = newRepo()
-
-        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
-        r.git 'add', '-A'
-        r.git 'commit', '-qm', 'first'
-        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'changed\n')
-        r.git 'add', '-A'
-        r.git 'commit', '-qm', 'second'
-
-        res = withCwd(r.dir, -> git.collectLog(2, {patch: true}))
-
-        matches res.data[0].patch, /a\.txt/
-        matches res.data[0].patch, /\+a/
-
-        matches res.data[1].patch, /a\.txt/
-        matches res.data[1].patch, /\+changed/
-
-        r.cleanup()
-
-    ▸ -d with paths limits the patch to them
-
-        r = newRepo()
-
-        fs.writeFileSync(path.join(r.dir, 'a.kode'), 'a\n')
-        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'b\n')
-        r.git 'add', '-A'
-        r.git 'commit', '-qm', 'first'
-
-        res = withCwd(r.dir, -> git.collectLog(1, {patch: true, paths: ['*.kode']}))
-
-        matches res.data[0].patch, /a\.kode/
-        not res.data[0].patch.includes('b.txt') ▸ yes
-
-        r.cleanup()
-
     ▸ -f with paths limits the listing to them
 
         r = newRepo()
@@ -1230,7 +1193,7 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
 
         r.cleanup()
 
-    ▸ the log shows the files and the patch of every commit
+    ▸ the log shows the files of every commit
 
         r = newRepo()
 
@@ -1239,14 +1202,13 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
         r.git 'commit', '-qm', 'first'
 
         io = sink()
-        withCwd(r.dir, -> log.log(['-f', '-d'], io, Object.assign({}, io.opts, {width: 200})))
+        withCwd(r.dir, -> log.log(['-f'], io, Object.assign({}, io.opts, {width: 200})))
 
         matches io.text(), /a\.txt/
-        matches io.text(), /diff\x20--git/
 
         r.cleanup()
 
-    ▸ a commit behind -d is refused, the log shows every commit
+    ▸ a commit behind -f is refused, the log shows every commit
 
         r = newRepo()
 
@@ -1255,41 +1217,10 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
         r.git 'commit', '-qm', 'first'
 
         io = sink()
-        code = withCwd(r.dir, -> log.log(['-d', 'HEAD'], io, io.opts))
+        code = withCwd(r.dir, -> log.log(['-f', 'HEAD'], io, io.opts))
 
         code ▸ 1
         matches io.err.join('\n'), /is\x20a\x20commit/
-
-        r.cleanup()
-
-    ▸ a merge shows the patch it decided on
-
-        r = newRepo()
-
-        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
-        r.git 'add', '-A'
-        r.git 'commit', '-qm', 'base'
-        r.git 'checkout', '-q', '-b', 'side'
-        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'side\n')
-        r.git 'commit', '-qam', 'side'
-        r.git 'checkout', '-q', r.branch
-        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'main\n')
-        r.git 'commit', '-qam', 'main'
-
-        #  the merge conflicts, and resolving it is what the merge decided
-
-        try
-            r.git 'merge', '--no-edit', 'side'
-        catch err
-            fs.writeFileSync(path.join(r.dir, 'a.txt'), 'both\n')
-
-        r.git 'add', '-A'
-        r.git 'commit', '-qm', 'merged'
-
-        res = withCwd(r.dir, -> git.collectLog(1, {patch: true}))
-
-        matches res.data[0].patch, /a\.txt/
-        matches res.data[0].patch, /\+both/
 
         r.cleanup()
 

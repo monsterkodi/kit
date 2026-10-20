@@ -384,8 +384,7 @@ paintBody = (lines, indent, t) ->
 #  beyond the message. The title is the first line of the message; the rest is
 #  the body, and a body is what the fade and the blank line are for.
 #
-#  The files of the commit and its patch are below the message, when they are
-#  asked for.
+#  The files of the commit are below the message, when they are asked for.
 
 renderCommit = (c, width, long, t, date=c.date ? '') ->
 
@@ -454,14 +453,6 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
         lines.push ''
         for item in c.files
             lines.push(indent + renderEntry(item, {theme: t}))
-            extra += 1
-
-    #  The patch of the commit, at the margin: a diff wants the whole width.
-
-    if c.patch
-        for line in String(c.patch).split('\n')
-            if line == '' then continue
-            lines.push line
             extra += 1
 
     {lines: lines, extra: extra}

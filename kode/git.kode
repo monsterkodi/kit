@@ -268,12 +268,10 @@ LOG_DATE = 'format-local:%b %e %H:%M'
 LOG_FORMAT_SHORT = '%x00%h%x00%ad%x00%an%x00%s%x00'
 LOG_FORMAT_LONG  = '%x00%h%x00%ad%x00%an%x00%B%x00'
 
-#  The markers that tell the extra blocks of a commit apart from its message.
-#  They are printed by the format, so they come before the block git writes
-#  after it: the file list, the patch.
+#  The marker that tells the file list of a commit apart from its message. It
+#  is printed by the format, so it comes before the block git writes after it.
 
 LOG_MARK_FILES = '<<files>>'
-LOG_MARK_PATCH = '<<patch>>'
 
 LOG_STRIDE = 5
 
@@ -382,50 +380,6 @@ parseFiles = (raw) ->
 
     out
 
-#  The patches of the commits, as git writes them: one call, the commits in
-#  the order the log has them.
-
-LOG_FORMAT_PATCH = '%x00%h%x00' + LOG_MARK_PATCH
-
-collectPatches = (count=null, paths=[], opt={}) ->
-
-    #  --cc is what git show does for a merge: the combined diff, the one that
-    #  says what the merge itself decided.
-
-    args = ['log', '-p', '--cc', "--format=#{LOG_FORMAT_PATCH}", '--reverse']
-
-    if opt.colour then args.push '--color=always'
-
-    if count != null then args.push '-n', String(count)
-
-    if paths.length > 0 then args = args.concat(['--']).concat(paths)
-
-    r = run args
-    if not r.ok then ⮐ {error: r, data: null}
-
-    {error: null, data: parsePatches(r.stdout)}
-
-parsePatches = (raw) ->
-
-    out = {}
-    fields = raw.split '\0'
-
-    #  The records repeat every two fields: the hash, and the patch behind its
-    #  marker.
-
-    i = 1
-    while i + 1 < fields.length
-
-        hash = fields[i].trim()
-        block = fields[i + 1] ? ''
-
-        if valid hash and block.startsWith LOG_MARK_PATCH
-            out[hash] = block.slice(LOG_MARK_PATCH.length).replace(/^\n+|\n+$/g, '')
-
-        i += 2
-
-    out
-
 #  True when the repository has no commits yet (an unborn HEAD).
 
 hasCommits = -> run(['rev-parse', '--verify', 'HEAD']).ok
@@ -435,13 +389,11 @@ hasCommits = -> run(['rev-parse', '--verify', 'HEAD']).ok
 #    defaults to one line per commit
 #    option long=true displays the full message
 #    option files=true adds the files every commit touched
-#    option patch=true adds the patch of every commit, limited to the paths
 
 collectLog = (count=null, opt={}) ->
 
     long = opt.long ? false
     files = opt.files ? false
-    patch = opt.patch ? false
     paths = opt.paths ? []
 
     if not hasCommits() then ⮐ {error: null, data: []}
@@ -465,15 +417,6 @@ collectLog = (count=null, opt={}) ->
         for c in data
             c.files = f.data[c.hash] ? []
 
-    if patch
-
-        p = collectPatches(count, paths, {colour: opt.colour ? false})
-
-        if p.error then ⮐ {error: p.error, data: null}
-
-        for c in data
-            c.patch = p.data[c.hash] ? ''
-
     error: null, data: data
 
 export
@@ -494,9 +437,7 @@ export
     hasCommits: hasCommits
     collectLog: collectLog
     collectFiles: collectFiles
-    collectPatches: collectPatches
     parseLog: parseLog
     fileList: fileList
     parseFiles: parseFiles
-    parsePatches: parsePatches
     LOG_DATE: LOG_DATE
