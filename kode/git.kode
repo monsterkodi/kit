@@ -48,6 +48,28 @@ capture = (args) ->
 
     child_process.execFileSync 'git', args, opts
 
+#  Run git with the terminal attached: the output goes straight to the pager
+#  and the diff viewer the user has set up, not through kit.
+#
+#  The PAGER overrides of gitEnv are left off on purpose. They exist to keep
+#  the output of the other commands out of a pager, and this command is the
+#  one that wants it.
+
+runAttached = (args) ->
+
+    r = child_process.spawnSync 'git', args, {stdio: 'inherit'}
+
+    r.status ? 1
+
+#  True when the token names a commit: a ref, a hash, HEAD~2 and the like.
+#  A path is not a commit, and a name that is neither is a path as well.
+
+isCommit = (token) ->
+
+    r = run(['rev-parse', '--verify', '--quiet', "#{token}^{commit}"])
+
+    r.ok
+
 at = (dir) -> if dir then {cwd: dir} else {}
 
 repoProblem = (dir) ->
@@ -303,6 +325,8 @@ collectLog = (count=null, opt={}) ->
 export
     run: run
     capture: capture
+    runAttached: runAttached
+    isCommit: isCommit
     repoProblem: repoProblem
     inRepo: inRepo
     parseStatusV2: parseStatusV2

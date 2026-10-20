@@ -1,0 +1,118 @@
+###
+ ████████   ████████  ███   ███  ███████    ████████  ████████
+ ███   ███  ███       ████  ███  ███   ███  ███       ███   ███
+ ████████   ███████   ███ █ ███  ███   ███  ███████   ███████
+ ███   ███  ███       ███  ████  ███   ███  ███       ███   ███
+ ███   ███  ████████  ███   ███  ███████    ████████  ███   ███
+###
+
+#  `kit diff` argument parsing and the git commands it runs.
+#
+#  The diff itself is git's: kit only decides what to ask git for. So the
+#  tests here are about the arguments and the commands they turn into.
+
+use ../diff
+use ./helpers ▪ matches notMatches
+
+never = -> false
+always = -> true
+mainOnly = (token) -> token == 'main'
+
+▸ parseArgs
+
+    ▸ no arguments means the working tree
+
+        r = diff.parseArgs []
+
+        r.ok ▸ yes
+        r.target ▸ null
+        r.paths ▸ []
+
+    ▸ a negative number is a commit
+
+        r = diff.parseArgs ['-1'], never
+
+        r.ok ▸ yes
+        r.target ▸ '-1'
+        r.paths ▸ []
+
+    ▸ a ref or a hash is a commit
+
+        r = diff.parseArgs ['abc1234'], always
+
+        r.ok ▸ yes
+        r.target ▸ 'abc1234'
+
+        r = diff.parseArgs ['main'], always
+
+        r.target ▸ 'main'
+
+    ▸ a token that is no commit is a path
+
+        r = diff.parseArgs ['kode/render.kode'], never
+
+        r.ok ▸ yes
+        r.target ▸ null
+        r.paths ▸ ['kode/render.kode']
+
+    ▸ kode and .kode are the two known filters
+
+        r = diff.parseArgs ['kode'], never
+
+        r.target ▸ null
+        r.paths ▸ ['kode']
+
+        r = diff.parseArgs ['.kode'], never
+
+        r.target ▸ null
+        r.paths ▸ ['*.kode']
+
+    ▸ a commit and a path mix
+
+        r = diff.parseArgs ['-1', 'kode'], never
+
+        r.ok ▸ yes
+        r.target ▸ '-1'
+        r.paths ▸ ['kode']
+
+        r = diff.parseArgs ['main', 'kode/render.kode'], mainOnly
+
+        r.target ▸ 'main'
+        r.paths ▸ ['kode/render.kode']
+
+    ▸ two commits are an error
+
+        r = diff.parseArgs ['-1', '-2'], never
+
+        r.ok ▸ no
+        matches r.message, /at\x20most\x20one/
+
+        r = diff.parseArgs ['-1', 'main'], always
+
+        r.ok ▸ no
+        matches r.message, /at\x20most\x20one/
+
+    ▸ an unknown flag is an error, not a file name
+
+        r = diff.parseArgs ['--stat'], never
+
+        r.ok ▸ no
+        matches r.message, /not\x20a\x20commit\x20number/
+
+▸ gitCommands
+
+    ▸ the working tree is the staged diff and then the unstaged one
+
+        diff.gitCommands(null, []) ▸ [['diff', '--staged'], ['diff']]
+
+    ▸ paths narrow both of them down
+
+        diff.gitCommands(null, ['kode']) ▸ [['diff', '--staged', '--', 'kode'], ['diff', '--', 'kode']]
+
+    ▸ a commit is shown with git show
+
+        diff.gitCommands('-1', []) ▸ [['show', '-1']]
+
+    ▸ a commit with paths shows those paths alone
+
+        diff.gitCommands('abc1234', ['*.kode']) ▸ [['show', 'abc1234', '--', '*.kode']]

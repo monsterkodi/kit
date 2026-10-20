@@ -8,6 +8,8 @@ import commit from "./commit.js"
 
 import log from "./log.js"
 
+import diff from "./diff.js"
+
 import theme from "./theme.js"
 
 USAGE = `kit — a git wrapper
@@ -16,7 +18,9 @@ USAGE = `kit — a git wrapper
                           a directory that is not a repository is looked into one level down.
   kit add [path…]         stage changes, then show what was staged.
   kit commit [words…]     stage, then commit using the words as the message.
-  kit log [n] [-l]        one line per commit, -l the full message, n the count.`
+  kit log [n] [-l]        one line per commit, -l the full message, n the count.
+  kit diff [id…]          the staged and unstaged changes, or the diff of one commit:
+                          -1 is the last commit, a ref names one, paths narrow it down.`
 
 out = function (s)
 {
@@ -52,6 +56,9 @@ kit = function ()
         case 'log':
             return process.exit(log.log(rest,io,{theme:palette}))
 
+        case 'diff':
+            return process.exit(diff.diff(rest,io,{theme:palette}))
+
         case '--help':
         case '-h':
         case 'help':
@@ -72,5 +79,5 @@ kit = function ()
 }
 export default kit;
 
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoia2l0LmpzIiwic291cmNlcyI6WyIuLi9rb2RlL2tpdC5rb2RlIl0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7QUFvQkEsUUFBUTs7Ozs7Ozs7QUFVUjs7V0FBYSxRQUFRLE9BQU8sTUFBTSxJQUFJOzs7QUFDdEM7O1dBQWEsUUFBUSxPQUFPLE1BQU0sSUFBSTs7QUFFdEMsTUFDSSxJQUFLLElBQ0wsTUFBTztBQUlYLFNBQVMsUUFBUSxRQUFRLE9BQU8sV0FBZSxRQUFRLElBQUksWUFBYSxRQUFRLElBQUksU0FBUTs7QUFFNUY7Ozs7SUFFSSxPQUFPLFFBQVEsS0FBSyxNQUFNO0lBQzFCLE1BQU0sS0FBSztJQUNYLE9BQU8sS0FBSyxNQUFNO0lBRWxCLFVBQVUsTUFBTSxZQUFZO1lBRXJCOzthQUVIO21CQUNJLFFBQVEsS0FBSyxPQUFPLE9BQU8sS0FBTSxJQUFLLE1BQU87O2FBRWpEO21CQUNJLFFBQVEsS0FBSyxJQUFJLElBQUksS0FBTSxJQUFLLE1BQU87O2FBRTNDO21CQUNJLFFBQVEsS0FBSyxPQUFPLE9BQU8sS0FBTSxJQUFLLE1BQU87O2FBRWpEO21CQUNJLFFBQVEsS0FBSyxJQUFJLElBQUksS0FBTSxJQUFLLE1BQU87O2FBRTNDO2FBQ0E7YUFDQTtZQUNJLEdBQUcsSUFBSTttQkFDUCxRQUFRLEtBQUs7O2FBRWpCO1lBQ0ksR0FBRyxJQUFJO21CQUNQLFFBQVEsS0FBSzs7O1lBR2IsR0FBRywrQkFBK0I7WUFDbEMsR0FBRyxNQUFNO1lBQ1QsR0FBRyxNQUFNO21CQUNULFFBQVEsS0FBSzs7OztlQUVsQiJ9
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoia2l0LmpzIiwic291cmNlcyI6WyIuLi9rb2RlL2tpdC5rb2RlIl0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7OztBQXFCQSxRQUFROzs7Ozs7Ozs7O0FBWVI7O1dBQWEsUUFBUSxPQUFPLE1BQU0sSUFBSTs7O0FBQ3RDOztXQUFhLFFBQVEsT0FBTyxNQUFNLElBQUk7O0FBRXRDLE1BQ0ksSUFBSyxJQUNMLE1BQU87QUFJWCxTQUFTLFFBQVEsUUFBUSxPQUFPLFdBQWUsUUFBUSxJQUFJLFlBQWEsUUFBUSxJQUFJLFNBQVE7O0FBRTVGOzs7O0lBRUksT0FBTyxRQUFRLEtBQUssTUFBTTtJQUMxQixNQUFNLEtBQUs7SUFDWCxPQUFPLEtBQUssTUFBTTtJQUVsQixVQUFVLE1BQU0sWUFBWTtZQUVyQjs7YUFFSDttQkFDSSxRQUFRLEtBQUssT0FBTyxPQUFPLEtBQU0sSUFBSyxNQUFPOzthQUVqRDttQkFDSSxRQUFRLEtBQUssSUFBSSxJQUFJLEtBQU0sSUFBSyxNQUFPOzthQUUzQzttQkFDSSxRQUFRLEtBQUssT0FBTyxPQUFPLEtBQU0sSUFBSyxNQUFPOzthQUVqRDttQkFDSSxRQUFRLEtBQUssSUFBSSxJQUFJLEtBQU0sSUFBSyxNQUFPOzthQUUzQzttQkFDSSxRQUFRLEtBQUssS0FBSyxLQUFLLEtBQU0sSUFBSyxNQUFPOzthQUU3QzthQUNBO2FBQ0E7WUFDSSxHQUFHLElBQUk7bUJBQ1AsUUFBUSxLQUFLOzthQUVqQjtZQUNJLEdBQUcsSUFBSTttQkFDUCxRQUFRLEtBQUs7OztZQUdiLEdBQUcsK0JBQStCO1lBQ2xDLEdBQUcsTUFBTTtZQUNULEdBQUcsTUFBTTttQkFDVCxRQUFRLEtBQUs7Ozs7ZUFFbEIifQ==
 //# sourceURL=file:///home/kodi/s/kit/kode/kit.kode

@@ -1,0 +1,117 @@
+###
+ ████████   ████████  ███   ███  ███████    ████████  ████████
+ ███   ███  ███       ████  ███  ███   ███  ███       ███   ███
+ ████████   ███████   ███ █ ███  ███   ███  ███████   ███████
+ ███   ███  ███       ███  ████  ███   ███  ███       ███   ███
+ ███   ███  ████████  ███   ███  ███████    ████████  ███   ███
+###
+
+#  `kit diff [id…]`
+#
+#    kit diff                 the staged changes, then the unstaged ones
+#    kit diff -1              the diff of the last commit
+#    kit diff main            the diff of that commit
+#    kit diff kode            only the kode tree
+#    kit diff .kode           only the kode files
+#    kit diff -1 kode         the last commit, kode files only
+#
+#  The diff is git's own: git writes it, the pager and the diff viewer of the
+#  user's own setup show it. kit only decides what to ask git for.
+
+use ./git
+
+#  The two path filters kit knows by name.
+
+KODE_TREE = 'kode'
+KODE_FILES = '*.kode'
+
+#  What the arguments ask for.
+#
+#  A target is the commit to show: a ref, a hash, or a negative number, where
+#  -1 is the last commit and -2 the one before it. The paths are the ones the
+#  diff is limited to; they are git pathspecs, so a directory works as well as
+#  a file.
+#
+#  A token that names a commit is the target, a token that does not is a path:
+#  git itself cannot tell them apart either, and it takes a path that does not
+#  exist as a path that matches nothing.
+
+parseArgs = (args, isCommit=null) ->
+
+    targets = []
+    paths = []
+
+    for arg in args
+
+        #  A negative number is a commit: -1 is the last one and -2 the one
+        #  before it, the way git counts them.
+
+        if (/^-\d+$/).test arg
+            targets.push arg
+            continue
+
+        if arg.startsWith('-') then ⮐ {ok: false, message: "kit diff: '#{arg}' is not a commit number"}
+
+        #  The two path filters kit knows by name.
+
+        if arg == 'kode'
+            paths.push KODE_TREE
+            continue
+
+        if arg == '.kode'
+            paths.push KODE_FILES
+            continue
+
+        #  A token that names a commit is the commit to show; a token that
+        #  does not is a path the diff is limited to.
+
+        if isCommit and isCommit(arg)
+            targets.push arg
+            continue
+
+        paths.push arg
+
+    if targets.length > 1 then ⮐ {ok: false, message: "kit diff: expected at most one commit, got #{targets.length}"}
+
+    target = if targets.length > 0 then first targets else null
+
+    {ok: true, target: target, paths: paths}
+
+#  The git commands that show the diff that was asked for.
+#
+#  Without a target the working tree is the subject: what is staged first,
+#  then what is not. With a target the commit is, and git show is the command
+#  for it.
+
+gitCommands = (target, paths) ->
+
+    limit = if paths.length > 0 then ['--'].concat(paths) else []
+
+    if target then ⮐ [['show', target].concat(limit)]
+
+    [['diff', '--staged'].concat(limit), ['diff'].concat(limit)]
+
+diff = (args=[], io=console, opt={}) ->
+
+    if not git.inRepo()
+        io.error 'kit diff: not a git repository'
+        return 128
+
+    parsed = parseArgs(args, git.isCommit)
+
+    if not parsed.ok
+        io.error parsed.message
+        return 1
+
+    for cmd in gitCommands(parsed.target, parsed.paths)
+        code = git.runAttached(cmd)
+        if code != 0 then return code
+
+    0
+
+export
+    KODE_TREE: KODE_TREE
+    KODE_FILES: KODE_FILES
+    parseArgs: parseArgs
+    gitCommands: gitCommands
+    diff: diff

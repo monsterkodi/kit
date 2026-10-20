@@ -16,6 +16,8 @@ use ../status
 use ../add
 use ../commit
 use ../log
+use ../diff
+use ../git
 use ./style
 use ./helpers ▪ matches notMatches
 
@@ -1130,5 +1132,85 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
         withCwd(r.dir, -> log.log([], io, io.opts))
 
         matches io.text(), /fix:\x20handle\x20empty\x20tree\x20and\x20{2}spaces$/
+
+        r.cleanup()
+
+▸ diff
+
+    ▸ a clean tree has no diff at all
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        code = withCwd(r.dir, -> diff.diff([], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ not a git repository exits 128
+
+        dir = fs.mkdtempSync path.join(os.tmpdir(), 'kit-norepo-')
+
+        io = sink()
+        code = withCwd(dir, -> diff.diff([], io, io.opts))
+
+        code ▸ 128
+        matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+
+        fs.rmSync(dir, {recursive: true, force: true})
+
+    ▸ a bad argument is refused before git is asked
+
+        r = newRepo()
+
+        io = sink()
+        code = withCwd(r.dir, -> diff.diff(['--stat'], io, io.opts))
+
+        code ▸ 1
+        matches io.err.join('\n'), /not\x20a\x20commit\x20number/
+
+        r.cleanup()
+
+    ▸ the last commit shows what it changed
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'changed\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'second'
+
+        plan = diff.parseArgs ['-1'], -> false
+        out = withCwd(r.dir, -> diff.gitCommands(plan.target, plan.paths).map((c) -> git.capture c).join('\n'))
+
+        matches out, /a\.txt/
+        matches out, /changed/
+
+        r.cleanup()
+
+    ▸ a path narrows the diff down
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'b\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'changed\n')
+        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'changed\n')
+
+        plan = diff.parseArgs ['a.txt'], -> false
+        out = withCwd(r.dir, -> diff.gitCommands(plan.target, plan.paths).map((c) -> git.capture c).join('\n'))
+
+        matches out, /a\.txt/
+        not out.includes('b.txt') ▸ yes
 
         r.cleanup()
