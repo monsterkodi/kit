@@ -446,9 +446,12 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
             if budget < MIN_MESSAGE_WIDTH then lines = [prefix + text]
             else lines = [prefix + truncate(text, budget)]
 
-    #  The files the commit touched, under the subject column.
+    #  The files the commit touched, under the subject column, with a blank
+    #  line in front of them: the listing is a thing of its own, not part of
+    #  the message.
 
-    if c.files
+    if c.files and c.files.length > 0
+        lines.push ''
         for item in c.files
             lines.push(indent + renderEntry(item, {theme: t}))
             extra += 1

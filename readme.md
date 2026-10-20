@@ -32,8 +32,11 @@ kit diff -1 kode         the last commit, kode files only
 ```
 
 - `kit log -f` lists the files a commit touched, `kit log -d` shows its patch.
-  The arguments behind `-d` are the ones `kit diff` takes, so `kit log -d .kode`
-  shows the patches of the kode files only.
+  The arguments behind `-f` and `-d` are the ones `kit diff` takes, so
+  `kit log -d .kode` shows the patches of the kode files only, and
+  `kit log -f js/diff.js` lists that file alone. A file type is a name:
+  `kode` is the tree of that name, `.kode` is every file with that extension,
+  and any number of them can be asked for at once.
 
 - recommended aliases:
 

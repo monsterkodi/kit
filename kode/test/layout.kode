@@ -221,9 +221,10 @@ widest = (s) -> Math.max.apply null, widths(s)
         out = plain render.renderLog([c], {width: 80})
         lines = out.split '\n'
 
-        lines.length ▸ 3
-        lines[1] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'A src/new.mjs'
-        lines[2] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'M README.md'
+        lines.length ▸ 4
+        lines[1] ▸ ''
+        lines[2] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'A src/new.mjs'
+        lines[3] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'M README.md'
 
     ▸ a rename keeps the name it came from
 
@@ -239,14 +240,25 @@ widest = (s) -> Math.max.apply null, widths(s)
         out = plain render.renderLog([c, commit({hash: 'def5678'})], {width: 80})
         lines = out.split '\n'
 
-        lines[2] ▸ ''
-        matches lines[3], /^def5678\x20/
+        lines[3] ▸ ''
+        matches lines[4], /^def5678\x20/
 
     ▸ a commit without files has none
 
         out = plain render.renderLog([commit()], {width: 80})
 
         out.split('\n').length ▸ 1
+
+    ▸ the listing is below the body of a long message
+
+        body = 'the subject\n\nthe body of the message'
+        c = commit({subject: body, body, files: [{code: 'A', path: 'a.mjs'}]})
+        out = plain render.renderLog([c], {width: 80, long: true})
+        lines = out.split '\n'
+
+        lines[2] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'the body of the message'
+        lines[3] ▸ ''
+        lines[4] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'A a.mjs'
 
 ▸ the patch of a commit
 

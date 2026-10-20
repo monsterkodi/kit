@@ -78,6 +78,36 @@ mainOnly = (token) -> token == 'main'
         r.target ▸ null
         r.paths ▸ ['*.kode']
 
+    ▸ any file type is a filter, and a set of them is a set of paths
+
+        r = diff.parseArgs ['js'], never
+
+        r.paths ▸ ['js']
+
+        r = diff.parseArgs ['.js'], never
+
+        r.paths ▸ ['*.js']
+
+        r = diff.parseArgs ['kode', 'js', 'sh'], never
+
+        r.paths ▸ ['kode', 'js', 'sh']
+
+        r = diff.parseArgs ['.kode', '.js', '.sh'], never
+
+        r.paths ▸ ['*.kode', '*.js', '*.sh']
+
+    ▸ a path is a path, not a type
+
+        r = diff.parseArgs ['js/diff.js'], never
+
+        r.paths ▸ ['js/diff.js']
+
+    ▸ a type and a path can be asked for together
+
+        r = diff.parseArgs ['.kode', 'js/diff.js'], never
+
+        r.paths ▸ ['*.kode', 'js/diff.js']
+
     ▸ a commit and a path mix
 
         r = diff.parseArgs ['-1', 'kode'], never

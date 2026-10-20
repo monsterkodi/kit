@@ -286,9 +286,6 @@ LOG_STRIDE = 5
 ###
 
 #  Parse `git log` output produced by the formats above.
-#
-#  With the file list asked for, the fifth field of a record is the list of
-#  files the commit touched, behind its marker.
 
 parseLog = (raw) ->
 
@@ -307,19 +304,12 @@ parseLog = (raw) ->
 
             text = String(message ? '').replace(/\s+$/, '')
 
-            record =
+            out.push
                 hash: hash.trim()
                 date: date.trim()
                 name: name.trim()
                 subject: text
                 body: text
-
-            block = fields[i + 4] ? ''
-
-            if block.startsWith LOG_MARK_FILES
-                record.files = parseFiles block.slice(LOG_MARK_FILES.length)
-
-            out.push record
 
         i += LOG_STRIDE
 
@@ -330,7 +320,7 @@ parseLog = (raw) ->
 #  A rename is written as "R100\told\tnew": the path is the new name and the
 #  old one comes along as the origin, the way kit status shows it.
 
-parseFiles = (block) ->
+fileList = (block) ->
 
     out = []
 
@@ -347,6 +337,48 @@ parseFiles = (block) ->
             code: m[1]
             path: parts[parts.length - 1]
             orig: if parts.length > 1 then parts[0] else null
+
+    out
+
+#  The files of every commit, as git writes them: one call, the commits in the
+#  order the log has them.
+#
+#  The call is its own because the paths limit it: a commit that did not touch
+#  them is not in the answer, and the log still shows the commit.
+
+LOG_FORMAT_FILES = '%x00%h%x00' + LOG_MARK_FILES
+
+collectFiles = (count=null, paths=[]) ->
+
+    args = ['log', '--name-status', "--format=#{LOG_FORMAT_FILES}", '--reverse']
+
+    if count != null then args.push '-n', String(count)
+
+    if paths.length > 0 then args = args.concat(['--']).concat(paths)
+
+    r = run args
+    if not r.ok then ⮐ {error: r, data: null}
+
+    {error: null, data: parseFiles(r.stdout)}
+
+parseFiles = (raw) ->
+
+    out = {}
+    fields = raw.split '\0'
+
+    #  The records repeat every two fields: the hash, and the files behind
+    #  their marker.
+
+    i = 1
+    while i + 1 < fields.length
+
+        hash = fields[i].trim()
+        block = fields[i + 1] ? ''
+
+        if valid hash and block.startsWith LOG_MARK_FILES
+            out[hash] = fileList block.slice(LOG_MARK_FILES.length)
+
+        i += 2
 
     out
 
@@ -415,12 +447,7 @@ collectLog = (count=null, opt={}) ->
     if not hasCommits() then ⮐ {error: null, data: []}
 
     format = if long then LOG_FORMAT_LONG else LOG_FORMAT_SHORT
-
-    if files then format = "#{format}#{LOG_MARK_FILES}"
-
     args = ['log', "--format=#{format}", "--date=#{LOG_DATE}", '--reverse']
-
-    if files then args.push '--name-status'
 
     if count != null then args.push '-n', String(count)
 
@@ -428,6 +455,15 @@ collectLog = (count=null, opt={}) ->
     if not r.ok then ⮐ {error: r, data: null}
 
     data = parseLog(r.stdout)
+
+    if files
+
+        f = collectFiles(count, paths)
+
+        if f.error then ⮐ {error: f.error, data: null}
+
+        for c in data
+            c.files = f.data[c.hash] ? []
 
     if patch
 
@@ -457,8 +493,10 @@ export
     stagedCount: stagedCount
     hasCommits: hasCommits
     collectLog: collectLog
+    collectFiles: collectFiles
     collectPatches: collectPatches
     parseLog: parseLog
+    fileList: fileList
     parseFiles: parseFiles
     parsePatches: parsePatches
     LOG_DATE: LOG_DATE

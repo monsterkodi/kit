@@ -20,10 +20,18 @@
 
 use ./git
 
-#  The two path filters kit knows by name.
+#  The pathspec of a file type.
+#
+#  A type is a name: 'kode' is the tree of that name, '.kode' is every file
+#  with that extension. The set of types is open - 'kode', 'js' and 'sh' are
+#  trees, '.kode', '.js' and '.sh' are the files with those extensions - and
+#  any of them can be asked for together.
+#
+#  A path is a path: 'js/diff.js' is that file, and git takes it as it is.
 
-KODE_TREE = 'kode'
-KODE_FILES = '*.kode'
+typePathspec = (type) ->
+
+    if type.startsWith('.') then "*.#{type.slice(1)}" else type
 
 #  What the arguments ask for.
 #
@@ -59,24 +67,14 @@ parseArgs = (args, isCommit=null) ->
 
         if arg.startsWith('-') then ⮐ {ok: false, message: "'#{arg}' is not a commit number"}
 
-        #  The two path filters kit knows by name.
-
-        if arg == 'kode'
-            paths.push KODE_TREE
-            continue
-
-        if arg == '.kode'
-            paths.push KODE_FILES
-            continue
-
         #  A token that names a commit is the commit to show; a token that
-        #  does not is a path the diff is limited to.
+        #  does not is a file type or a path the diff is limited to.
 
         if isCommit and isCommit(arg)
             targets.push {rev: arg}
             continue
 
-        paths.push arg
+        paths.push typePathspec(arg)
 
     if targets.length > 1 then ⮐ {ok: false, message: "expected at most one commit, got #{targets.length}"}
 
@@ -135,8 +133,7 @@ diff = (args=[], io=console, opt={}) ->
     0
 
 export
-    KODE_TREE: KODE_TREE
-    KODE_FILES: KODE_FILES
+    typePathspec: typePathspec
     parseArgs: parseArgs
     gitCommands: gitCommands
     diff: diff

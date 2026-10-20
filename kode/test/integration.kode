@@ -1198,6 +1198,38 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
 
         r.cleanup()
 
+    ▸ -f with paths limits the listing to them
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.kode'), 'a\n')
+        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'b\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'first'
+
+        res = withCwd(r.dir, -> git.collectLog(1, {files: true, paths: ['*.kode']}))
+
+        res.data[0].files.length ▸ 1
+        res.data[0].files[0].path ▸ 'a.kode'
+
+        r.cleanup()
+
+    ▸ -f with a path limits the listing to that file
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'b\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'first'
+
+        res = withCwd(r.dir, -> git.collectLog(1, {files: true, paths: ['b.txt']}))
+
+        res.data[0].files.length ▸ 1
+        res.data[0].files[0].path ▸ 'b.txt'
+
+        r.cleanup()
+
     ▸ the log shows the files and the patch of every commit
 
         r = newRepo()

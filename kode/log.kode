@@ -15,8 +15,9 @@
 #    kit log -d       the patch of every commit, under the message
 #    kit log -l 10    both
 #
-# The arguments behind -d are the paths the patches are limited to, and they
-# are the ones `kit diff` takes: kode, .kode, or the name of a file.
+# The arguments behind -f and -d are the paths the listing and the patches are
+# limited to, and they are the ones `kit diff` takes: a file type such as
+# kode or .kode, or the name of a file.
 
 use ./git
 use ./render
@@ -30,6 +31,7 @@ parseArgs = (args) ->
     patch = false
     numbers = []
     paths = []
+    filtering = false
 
     for arg in args
 
@@ -39,10 +41,12 @@ parseArgs = (args) ->
 
         if arg in ['-f' '--files']
             files = true
+            filtering = true
             continue
 
         if arg in ['-d' '--diff']
             patch = true
+            filtering = true
             continue
 
         #  The count is the log's, wherever it stands.
@@ -51,10 +55,10 @@ parseArgs = (args) ->
             numbers.push arg
             continue
 
-        #  Everything else behind -d belongs to the diff: the paths the
-        #  patches are limited to.
+        #  Everything behind -f or -d belongs to the diff: the files the
+        #  listing and the patches are limited to.
 
-        if patch
+        if filtering
             paths.push arg
             continue
 
@@ -78,20 +82,21 @@ terminalWidth = (out=process.stdout) ->
     if Number.isInteger(cols) and cols > 0 then ⮐ cols
     render.DEFAULT_WIDTH
 
-#  The paths the patches are limited to, as the diff command has them.
+#  The paths the files and the patches are limited to, as the diff command has
+#  them.
 
-patchPaths = (args) ->
+filterPaths = (args) ->
 
     parsed = diff.parseArgs(args, git.isCommit)
 
     if not parsed.ok then ⮐ {ok: false, message: parsed.message}
 
-    #  A commit is not a path: the log shows the patch of every commit in it,
-    #  so there is no one commit to name.
+    #  A commit is not a path: the log shows every commit in it, so there is
+    #  no one commit to name.
 
     if parsed.target
         label = if parsed.target.number? then "-#{parsed.target.number}" else parsed.target.rev
-        ⮐ {ok: false, message: "'#{label}' is a commit, and -d takes paths"}
+        ⮐ {ok: false, message: "'#{label}' is a commit, not a path"}
 
     {ok: true, paths: parsed.paths}
 
@@ -111,7 +116,7 @@ log = (args, io=console, env={}) ->
 
     if parsed.paths.length > 0
 
-        p = patchPaths(parsed.paths)
+        p = filterPaths(parsed.paths)
 
         if not p.ok
             io.error 'kit log: ' + p.message
@@ -143,5 +148,5 @@ log = (args, io=console, env={}) ->
 export
     parseArgs: parseArgs
     terminalWidth: terminalWidth
-    patchPaths: patchPaths
+    filterPaths: filterPaths
     log: log
