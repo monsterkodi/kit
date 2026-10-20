@@ -213,27 +213,115 @@ widest = (s) -> Math.max.apply null, widths(s)
         out.split('\n').length ▸ 3
         out.endsWith('\n') ▸ no
 
+▸ the files of a commit
+
+    ▸ they are listed under the subject column
+
+        c = commit({files: [{code: 'A', path: 'src/new.mjs'}, {code: 'M', path: 'README.md'}]})
+        out = plain render.renderLog([c], {width: 80})
+        lines = out.split '\n'
+
+        lines.length ▸ 3
+        lines[1] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'A src/new.mjs'
+        lines[2] ▸ ' '.repeat(render.PREFIX_WIDTH) + 'M README.md'
+
+    ▸ a rename keeps the name it came from
+
+        c = commit({files: [{code: 'R', path: 'new.txt', orig: 'old.txt'}]})
+        out = plain render.renderLog([c], {width: 80})
+
+        matches out, /R\x20new\.txt/
+        matches out, /old\.txt/
+
+    ▸ they are set off from the next commit by a blank line
+
+        c = commit({files: [{code: 'A', path: 'a.mjs'}]})
+        out = plain render.renderLog([c, commit({hash: 'def5678'})], {width: 80})
+        lines = out.split '\n'
+
+        lines[2] ▸ ''
+        matches lines[3], /^def5678\x20/
+
+    ▸ a commit without files has none
+
+        out = plain render.renderLog([commit()], {width: 80})
+
+        out.split('\n').length ▸ 1
+
+▸ the patch of a commit
+
+    ▸ it is below the message, at the margin
+
+        c = commit({patch: 'diff --git a/a.mjs b/a.mjs\n@@ -1 +1 @@\n-a\n+b'})
+        out = plain render.renderLog([c], {width: 80})
+        lines = out.split '\n'
+
+        lines.length ▸ 5
+        lines[1] ▸ 'diff --git a/a.mjs b/a.mjs'
+        lines[2] ▸ '@@ -1 +1 @@'
+        lines[3] ▸ '-a'
+        lines[4] ▸ '+b'
+
+    ▸ it is set off from the next commit by a blank line
+
+        c = commit({patch: 'diff --git a/a.mjs b/a.mjs'})
+        out = plain render.renderLog([c, commit({hash: 'def5678'})], {width: 80})
+        lines = out.split '\n'
+
+        lines[2] ▸ ''
+        matches lines[3], /^def5678\x20/
+
+    ▸ a commit without a patch has none
+
+        out = plain render.renderLog([commit()], {width: 80})
+
+        out.split('\n').length ▸ 1
+
 ▸ parseArgs
 
     ▸ no arguments is short mode, whole history
 
-        log.parseArgs([]) ▸ {ok: true, count: null, long: false}
+        log.parseArgs([]) ▸ {ok: true, count: null, long: false, files: false, patch: false, paths: []}
 
     ▸ a bare number is a commit count
 
-        log.parseArgs(['10']) ▸ {ok: true, count: 10, long: false}
-        log.parseArgs(['0']) ▸ {ok: true, count: 0, long: false}
+        log.parseArgs(['10']) ▸ {ok: true, count: 10, long: false, files: false, patch: false, paths: []}
+        log.parseArgs(['0']) ▸ {ok: true, count: 0, long: false, files: false, patch: false, paths: []}
 
     ▸ -l and --long both mean long mode
 
-        log.parseArgs(['-l']) ▸ {ok: true, count: null, long: true}
-        log.parseArgs(['--long']) ▸ {ok: true, count: null, long: true}
+        log.parseArgs(['-l']) ▸ {ok: true, count: null, long: true, files: false, patch: false, paths: []}
+        log.parseArgs(['--long']) ▸ {ok: true, count: null, long: true, files: false, patch: false, paths: []}
 
     ▸ the flag and a count combine in either order
 
-        log.parseArgs(['-l', '5']) ▸ {ok: true, count: 5, long: true}
-        log.parseArgs(['5', '-l']) ▸ {ok: true, count: 5, long: true}
-        log.parseArgs(['5', '--long']) ▸ {ok: true, count: 5, long: true}
+        log.parseArgs(['-l', '5']) ▸ {ok: true, count: 5, long: true, files: false, patch: false, paths: []}
+        log.parseArgs(['5', '-l']) ▸ {ok: true, count: 5, long: true, files: false, patch: false, paths: []}
+        log.parseArgs(['5', '--long']) ▸ {ok: true, count: 5, long: true, files: false, patch: false, paths: []}
+
+    ▸ -f and --files ask for the files of a commit
+
+        log.parseArgs(['-f']) ▸ {ok: true, count: null, long: false, files: true, patch: false, paths: []}
+        log.parseArgs(['--files']) ▸ {ok: true, count: null, long: false, files: true, patch: false, paths: []}
+
+    ▸ -d and --diff ask for the patch of a commit
+
+        log.parseArgs(['-d']) ▸ {ok: true, count: null, long: false, files: false, patch: true, paths: []}
+        log.parseArgs(['--diff']) ▸ {ok: true, count: null, long: false, files: false, patch: true, paths: []}
+
+    ▸ everything behind -d belongs to the diff
+
+        log.parseArgs(['-d', '.kode']) ▸ {ok: true, count: null, long: false, files: false, patch: true, paths: ['.kode']}
+        log.parseArgs(['5', '-d', 'kode', 'src/a.mjs']) ▸ {ok: true, count: 5, long: false, files: false, patch: true, paths: ['kode', 'src/a.mjs']}
+
+    ▸ the count is the log's, wherever it stands
+
+        log.parseArgs(['-d', '5']) ▸ {ok: true, count: 5, long: false, files: false, patch: true, paths: []}
+        log.parseArgs(['-d', '5', '.kode']) ▸ {ok: true, count: 5, long: false, files: false, patch: true, paths: ['.kode']}
+
+    ▸ the flags of the log are the flags of the log, wherever they stand
+
+        log.parseArgs(['-d', '-f']) ▸ {ok: true, count: null, long: false, files: true, patch: true, paths: []}
 
     ▸ bad arguments are rejected, not silently ignored
 

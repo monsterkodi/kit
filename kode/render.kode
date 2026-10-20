@@ -270,11 +270,11 @@ renderLog = (commits, opt={}) ->
         for l in block.lines
             out.push l
 
-        #  A commit that has a body is set off from the next one by a blank
-        #  line: the fade says where the body ends, the blank line says it
-        #  again in space. A commit without a body stays where it is.
+        #  A commit that has more than its message is set off from the next one
+        #  by a blank line: the fade says where the body ends, the blank line
+        #  says it again in space. A commit that is one line stays where it is.
 
-        if block.body > 0 and i < commits.length - 1 then out.push ''
+        if block.extra > 0 and i < commits.length - 1 then out.push ''
 
     out.join('\n')
 
@@ -380,9 +380,12 @@ paintBody = (lines, indent, t) ->
     lines: out
     body: count
 
-#  One commit, rendered: its lines and the number of body lines among them.
-#  The title is the first line of the message; the rest is the body, and a
-#  body is what the fade and the blank line are for.
+#  One commit, rendered: its lines and the number of lines among them that go
+#  beyond the message. The title is the first line of the message; the rest is
+#  the body, and a body is what the fade and the blank line are for.
+#
+#  The files of the commit and its patch are below the message, when they are
+#  asked for.
 
 renderCommit = (c, width, long, t, date=c.date ? '') ->
 
@@ -393,6 +396,9 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
     prefix = "#{hash} #{stamp} #{name} "
 
     body = c.body ? c.subject ? ''
+
+    lines = []
+    extra = 0
 
     if width < NARROW_WIDTH
 
@@ -406,34 +412,56 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
 
         if long
 
-            lines = wrap(text, inner)
-            painted = paintBody(lines.slice(1), indent, t)
+            wrapped = wrap(text, inner)
+            painted = paintBody(wrapped.slice(1), indent, t)
 
-            return {lines: [prefix.trimEnd(), indent + lines[0]].concat(painted.lines), body: painted.body}
+            lines = [prefix.trimEnd(), indent + wrapped[0]].concat(painted.lines)
+            extra += painted.body
 
-        lines = [truncate(text, Math.min(Math.max(inner, MIN_MESSAGE_WIDTH), width - NARROW_INDENT))]
+        else
 
-        return {lines: [prefix.trimEnd(), indent + lines[0]], body: 0}
+            lines = [prefix.trimEnd(), indent + truncate(text, Math.min(Math.max(inner, MIN_MESSAGE_WIDTH), width - NARROW_INDENT))]
 
-    budget = Math.max(width - PREFIX_WIDTH, 1)
-    text = if long then body else firstLine(c)
+    else
 
-    if long
-
-        lines = wrap text, budget
+        budget = Math.max(width - PREFIX_WIDTH, 1)
+        text = if long then body else firstLine(c)
         indent = ' '.repeat PREFIX_WIDTH
 
-        painted = paintBody(lines.slice(1), indent, t)
+        if long
 
-        return {lines: [prefix + lines[0]].concat(painted.lines), body: painted.body}
+            wrapped = wrap text, budget
+            painted = paintBody(wrapped.slice(1), indent, t)
 
-    #  Short: one line, truncated to fit the remaining budget. When the budget is
-    #  below MIN_MESSAGE_WIDTH the message is emitted whole and the terminal wraps
-    #  it, because a 30-column stub is less use than a long line.
+            lines = [prefix + wrapped[0]].concat(painted.lines)
+            extra += painted.body
 
-    if budget < MIN_MESSAGE_WIDTH then ⮐ {lines: [prefix + text], body: 0}
+        else
 
-    {lines: [prefix + truncate(text, budget)], body: 0}
+            #  Short: one line, truncated to fit the remaining budget. When the
+            #  budget is below MIN_MESSAGE_WIDTH the message is emitted whole
+            #  and the terminal wraps it, because a 30-column stub is less use
+            #  than a long line.
+
+            if budget < MIN_MESSAGE_WIDTH then lines = [prefix + text]
+            else lines = [prefix + truncate(text, budget)]
+
+    #  The files the commit touched, under the subject column.
+
+    if c.files
+        for item in c.files
+            lines.push(indent + renderEntry(item, {theme: t}))
+            extra += 1
+
+    #  The patch of the commit, at the margin: a diff wants the whole width.
+
+    if c.patch
+        for line in String(c.patch).split('\n')
+            if line == '' then continue
+            lines.push line
+            extra += 1
+
+    {lines: lines, extra: extra}
 
 firstLine = (c) ->
 

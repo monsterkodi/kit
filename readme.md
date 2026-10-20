@@ -6,6 +6,8 @@ A git wrapper: `status`, `add`, `commit`, `log`, `diff`. Requires node, no depen
     kit add [path...]         stage changes, then show what was staged
     kit commit [words...]     stage, then commit using the words as the message
     kit log [n] [-l]          one line per commit, optionally the full message
+    kit log -f                the files every commit touched
+    kit log -d                the patch of every commit
     kit diff [id...]          the staged and unstaged changes, or one commit
 
 ![kit status](img/status.png)
@@ -28,6 +30,10 @@ kit diff kode            only the kode tree
 kit diff .kode           only the kode files
 kit diff -1 kode         the last commit, kode files only
 ```
+
+- `kit log -f` lists the files a commit touched, `kit log -d` shows its patch.
+  The arguments behind `-d` are the ones `kit diff` takes, so `kit log -d .kode`
+  shows the patches of the kode files only.
 
 - recommended aliases:
 

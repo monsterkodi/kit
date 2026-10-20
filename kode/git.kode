@@ -268,6 +268,13 @@ LOG_DATE = 'format-local:%b %e %H:%M'
 LOG_FORMAT_SHORT = '%x00%h%x00%ad%x00%an%x00%s%x00'
 LOG_FORMAT_LONG  = '%x00%h%x00%ad%x00%an%x00%B%x00'
 
+#  The markers that tell the extra blocks of a commit apart from its message.
+#  They are printed by the format, so they come before the block git writes
+#  after it: the file list, the patch.
+
+LOG_MARK_FILES = '<<files>>'
+LOG_MARK_PATCH = '<<patch>>'
+
 LOG_STRIDE = 5
 
 ###
@@ -279,6 +286,9 @@ LOG_STRIDE = 5
 ###
 
 #  Parse `git log` output produced by the formats above.
+#
+#  With the file list asked for, the fifth field of a record is the list of
+#  files the commit touched, behind its marker.
 
 parseLog = (raw) ->
 
@@ -297,14 +307,90 @@ parseLog = (raw) ->
 
             text = String(message ? '').replace(/\s+$/, '')
 
-            out.push
+            record =
                 hash: hash.trim()
                 date: date.trim()
                 name: name.trim()
                 subject: text
                 body: text
 
+            block = fields[i + 4] ? ''
+
+            if block.startsWith LOG_MARK_FILES
+                record.files = parseFiles block.slice(LOG_MARK_FILES.length)
+
+            out.push record
+
         i += LOG_STRIDE
+
+    out
+
+#  The files a commit touched: the status letter and the path of each of them.
+#
+#  A rename is written as "R100\told\tnew": the path is the new name and the
+#  old one comes along as the origin, the way kit status shows it.
+
+parseFiles = (block) ->
+
+    out = []
+
+    for line in String(block ? '').split('\n')
+
+        if line == '' then continue
+
+        m = line.match(/^([A-Z])\d*\t(.+)$/)
+        if not m then continue
+
+        parts = m[2].split('\t')
+
+        out.push
+            code: m[1]
+            path: parts[parts.length - 1]
+            orig: if parts.length > 1 then parts[0] else null
+
+    out
+
+#  The patches of the commits, as git writes them: one call, the commits in
+#  the order the log has them.
+
+LOG_FORMAT_PATCH = '%x00%h%x00' + LOG_MARK_PATCH
+
+collectPatches = (count=null, paths=[], opt={}) ->
+
+    #  --cc is what git show does for a merge: the combined diff, the one that
+    #  says what the merge itself decided.
+
+    args = ['log', '-p', '--cc', "--format=#{LOG_FORMAT_PATCH}", '--reverse']
+
+    if opt.colour then args.push '--color=always'
+
+    if count != null then args.push '-n', String(count)
+
+    if paths.length > 0 then args = args.concat(['--']).concat(paths)
+
+    r = run args
+    if not r.ok then ⮐ {error: r, data: null}
+
+    {error: null, data: parsePatches(r.stdout)}
+
+parsePatches = (raw) ->
+
+    out = {}
+    fields = raw.split '\0'
+
+    #  The records repeat every two fields: the hash, and the patch behind its
+    #  marker.
+
+    i = 1
+    while i + 1 < fields.length
+
+        hash = fields[i].trim()
+        block = fields[i + 1] ? ''
+
+        if valid hash and block.startsWith LOG_MARK_PATCH
+            out[hash] = block.slice(LOG_MARK_PATCH.length).replace(/^\n+|\n+$/g, '')
+
+        i += 2
 
     out
 
@@ -316,22 +402,43 @@ hasCommits = -> run(['rev-parse', '--verify', 'HEAD']).ok
 #    displays commits from oldest to newest
 #    defaults to one line per commit
 #    option long=true displays the full message
+#    option files=true adds the files every commit touched
+#    option patch=true adds the patch of every commit, limited to the paths
 
 collectLog = (count=null, opt={}) ->
 
     long = opt.long ? false
+    files = opt.files ? false
+    patch = opt.patch ? false
+    paths = opt.paths ? []
 
     if not hasCommits() then ⮐ {error: null, data: []}
 
     format = if long then LOG_FORMAT_LONG else LOG_FORMAT_SHORT
+
+    if files then format = "#{format}#{LOG_MARK_FILES}"
+
     args = ['log', "--format=#{format}", "--date=#{LOG_DATE}", '--reverse']
+
+    if files then args.push '--name-status'
 
     if count != null then args.push '-n', String(count)
 
     r = run args
     if not r.ok then ⮐ {error: r, data: null}
 
-    error: null, data: parseLog(r.stdout)
+    data = parseLog(r.stdout)
+
+    if patch
+
+        p = collectPatches(count, paths, {colour: opt.colour ? false})
+
+        if p.error then ⮐ {error: p.error, data: null}
+
+        for c in data
+            c.patch = p.data[c.hash] ? ''
+
+    error: null, data: data
 
 export
     run: run
@@ -350,5 +457,8 @@ export
     stagedCount: stagedCount
     hasCommits: hasCommits
     collectLog: collectLog
+    collectPatches: collectPatches
     parseLog: parseLog
+    parseFiles: parseFiles
+    parsePatches: parsePatches
     LOG_DATE: LOG_DATE

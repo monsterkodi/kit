@@ -6,36 +6,69 @@
 ███████   ███████    ███████
 ###
 
-# `kit log [-l|--long] [n]`
+# `kit log [-l|--long] [-f|--files] [-d|--diff] [n] [path…]`
 #
 #    kit log          one line per commit, truncated to the terminal width
 #    kit log 10       the 10 most recent commits
 #    kit log -l       the full message, wrapped under the subject column
+#    kit log -f       the files every commit touched, under the message
+#    kit log -d       the patch of every commit, under the message
 #    kit log -l 10    both
+#
+# The arguments behind -d are the paths the patches are limited to, and they
+# are the ones `kit diff` takes: kode, .kode, or the name of a file.
 
 use ./git
 use ./render
+use ./diff
+use ./theme
 
 parseArgs = (args) ->
 
     long = false
+    files = false
+    patch = false
     numbers = []
+    paths = []
 
     for arg in args
 
         if arg in ['-l' '--long']
             long = true
-        else if (/^\d+$/).test arg
+            continue
+
+        if arg in ['-f' '--files']
+            files = true
+            continue
+
+        if arg in ['-d' '--diff']
+            patch = true
+            continue
+
+        #  The count is the log's, wherever it stands.
+
+        if (/^\d+$/).test arg
             numbers.push arg
-        else
-            ⮐ ok: false, message: "kit log: '#{arg}' is not a commit count (try: kit log 10)"
+            continue
+
+        #  Everything else behind -d belongs to the diff: the paths the
+        #  patches are limited to.
+
+        if patch
+            paths.push arg
+            continue
+
+        ⮐ ok: false, message: "'#{arg}' is not a commit count (try: kit log 10)"
 
     if numbers.length > 1
-        ⮐ ok: false, message: "kit log: expected at most one commit count, got #{numbers.length}"
+        ⮐ ok: false, message: "expected at most one commit count, got #{numbers.length}"
 
     ok: true
     count: if numbers.length then Number(numbers[0]) else null
     long: long
+    files: files
+    patch: patch
+    paths: paths
 
 #  Terminal width in columns, or a sane fallback.
 
@@ -44,6 +77,23 @@ terminalWidth = (out=process.stdout) ->
     cols = out?.columns
     if Number.isInteger(cols) and cols > 0 then ⮐ cols
     render.DEFAULT_WIDTH
+
+#  The paths the patches are limited to, as the diff command has them.
+
+patchPaths = (args) ->
+
+    parsed = diff.parseArgs(args, git.isCommit)
+
+    if not parsed.ok then ⮐ {ok: false, message: parsed.message}
+
+    #  A commit is not a path: the log shows the patch of every commit in it,
+    #  so there is no one commit to name.
+
+    if parsed.target
+        label = if parsed.target.number? then "-#{parsed.target.number}" else parsed.target.rev
+        ⮐ {ok: false, message: "'#{label}' is a commit, and -d takes paths"}
+
+    {ok: true, paths: parsed.paths}
 
 log = (args, io=console, env={}) ->
 
@@ -54,10 +104,30 @@ log = (args, io=console, env={}) ->
     parsed = parseArgs args
 
     if not parsed.ok
-        io.error parsed.message
+        io.error 'kit log: ' + parsed.message
         return 1
 
-    res = git.collectLog parsed.count, {long: parsed.long}
+    paths = []
+
+    if parsed.paths.length > 0
+
+        p = patchPaths(parsed.paths)
+
+        if not p.ok
+            io.error 'kit log: ' + p.message
+            return 1
+
+        paths = p.paths
+
+    t = env.theme ? theme.theme
+
+    res = git.collectLog parsed.count, {
+        long: parsed.long
+        files: parsed.files
+        patch: parsed.patch
+        paths: paths
+        colour: t.enabled
+    }
 
     if res.error
         detail = res.error.stderr.trim()
@@ -65,7 +135,7 @@ log = (args, io=console, env={}) ->
         return res.error.code
 
     width = env.width ? terminalWidth(env.stream ? process.stdout)
-    out = render.renderLog res.data, {width, long: parsed.long, theme: env.theme}
+    out = render.renderLog res.data, {width, long: parsed.long, theme: t}
 
     if out then io.log out
     0
@@ -73,4 +143,5 @@ log = (args, io=console, env={}) ->
 export
     parseArgs: parseArgs
     terminalWidth: terminalWidth
+    patchPaths: patchPaths
     log: log

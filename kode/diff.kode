@@ -52,12 +52,12 @@ parseArgs = (args, isCommit=null) ->
 
             n = Number(arg.slice(1))
 
-            if n < 1 then ⮐ {ok: false, message: "kit diff: '#{arg}' is not a commit count (it starts at 1)"}
+            if n < 1 then ⮐ {ok: false, message: "'#{arg}' is not a commit count (it starts at 1)"}
 
             targets.push {number: n}
             continue
 
-        if arg.startsWith('-') then ⮐ {ok: false, message: "kit diff: '#{arg}' is not a commit number"}
+        if arg.startsWith('-') then ⮐ {ok: false, message: "'#{arg}' is not a commit number"}
 
         #  The two path filters kit knows by name.
 
@@ -78,7 +78,7 @@ parseArgs = (args, isCommit=null) ->
 
         paths.push arg
 
-    if targets.length > 1 then ⮐ {ok: false, message: "kit diff: expected at most one commit, got #{targets.length}"}
+    if targets.length > 1 then ⮐ {ok: false, message: "expected at most one commit, got #{targets.length}"}
 
     target = if targets.length > 0 then first targets else null
 
@@ -107,7 +107,7 @@ diff = (args=[], io=console, opt={}) ->
     parsed = parseArgs(args, git.isCommit)
 
     if not parsed.ok
-        io.error parsed.message
+        io.error 'kit diff: ' + parsed.message
         return 1
 
     rev = null
