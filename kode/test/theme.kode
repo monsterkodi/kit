@@ -38,7 +38,7 @@ withNoColor = (value, fn) ->
 names = [
     'add' 'del' 'mod' 'untracked' 'branch' 'repoPath' 'dim' 'bold'
     'headStaged' 'headCommitted' 'headUnstaged' 'headUntracked' 'ahead' 'behind'
-    'logHash' 'logDate' 'logName'
+    'logHash' 'logDate' 'logName' 'logBody'
     ]
 
 tree = ->
@@ -89,6 +89,33 @@ all = -> Object.fromEntries(Object.entries(cases).map(([k, fn]) -> [k, fn()]))
 
         for name in ['add' 'del' 'branch' 'repoPath' 'dim' 'logHash']
             strip(on[name]('x')) ▸ strip(off[name]('x'))
+
+    ▸ the body grey walks from light to dark
+
+        t = theme.createTheme true
+
+        codes = [0 1 2].map (i) ->
+            m = t.logBody('x', i, 3).match(/\u001b\[38;5;(\d+)m/)
+            Number(m[1])
+
+        codes[0] > codes[1] ▸ yes
+        codes[1] > codes[2] ▸ yes
+
+    ▸ a body of one line is the light end of the ramp
+
+        t = theme.createTheme true
+
+        m = t.logBody('x', 0, 1).match(/\u001b\[38;5;(\d+)m/)
+
+        Number(m[1]) ▸ 250
+
+    ▸ a body without a line count is the light end of the ramp
+
+        t = theme.createTheme true
+
+        m = t.logBody('x').match(/\u001b\[38;5;(\d+)m/)
+
+        Number(m[1]) ▸ 250
 
 ▸ theme
 

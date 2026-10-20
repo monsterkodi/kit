@@ -32,6 +32,20 @@ dated = (dates...) ->
 
     dates.map (date, i) -> commit({hash: 'abc1234', date, subject: "m#{i}"})
 
+#  The grey of every body line of a rendered log: the colour of the lines that
+#  carry one colour only. A commit header carries three — hash, date and name
+#  — so it is not one of them.
+
+bodyGreys = (out) ->
+
+    codes = []
+
+    for l in out.split('\n')
+        found = l.match(/\u001b\[38;5;(\d+)m/g) ? []
+        if found.length == 1 then codes.push Number(found[0].match(/\d+(?=m$)/)[0])
+
+    codes
+
 ▸ parseLog
 
     ▸ reads one record per line
@@ -216,6 +230,75 @@ dated = (dates...) ->
         out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00'), {theme: style.plainTheme, width: 50})
 
         matches out.split('\n')[2], /^abc1234\x20{8}15:00\x20Thorsten$/
+
+▸ the long body gradient
+
+    ▸ the body of a long message fades from light to dark
+
+        body = 'the subject\n\nfirst line of the body\nsecond line of the body'
+        out = render.renderLog([commit({subject: body, body})], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        greys = bodyGreys out
+
+        greys.length ▸ 2
+        greys[0] > greys[1] ▸ yes
+
+    ▸ the fade walks the greys of the palette, never out of them
+
+        body = 'the subject\n\nfirst line of the body\nsecond line of the body'
+        out = render.renderLog([commit({subject: body, body})], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        for g in bodyGreys(out)
+            g >= 232 ▸ yes
+            g <= 255 ▸ yes
+
+    ▸ the title keeps the colour of the column it stands in
+
+        out = render.renderLog([commit({subject: 'a message'})], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        codes = out.split('\n')[0].match(/\u001b\[38;5;\d+m/g).map((s) -> s.match(/\d+(?=m$)/)[0])
+
+        codes ▸ ['245' '39' '41']
+
+    ▸ a message without a body has no grey at all
+
+        out = render.renderLog([commit({subject: 'a message'})], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        bodyGreys(out).length ▸ 0
+
+    ▸ every commit fades on its own
+
+        body = 'the subject\n\nfirst line of the body\nsecond line of the body'
+
+        out = render.renderLog([
+            commit({subject: body, body})
+            commit({hash: 'def5678', subject: body, body})
+        ], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        greys = bodyGreys out
+
+        greys.length ▸ 4
+        greys[0] > greys[1] ▸ yes
+        greys[2] > greys[3] ▸ yes
+        greys[0] == greys[2] ▸ yes
+
+    ▸ a blank line in the body takes no step of the fade
+
+        body = 'the subject\n\nfirst line of the body\n\nsecond line of the body'
+        out = render.renderLog([commit({subject: body, body})], {width: 80, long: true, theme: theme.createTheme(true)})
+
+        greys = bodyGreys out
+
+        greys.length ▸ 2
+        greys[0] > greys[1] ▸ yes
+
+    ▸ the plain palette leaves the body alone
+
+        body = 'the subject\n\nfirst line of the body\nsecond line of the body'
+        out = render.renderLog([commit({subject: body, body})], {width: 80, long: true, theme: style.plainTheme})
+
+        notMatches out, /\u001b\[/
+        matches out, /first\x20line\x20of\x20the\x20body/
 
 ▸ collapseDates
 

@@ -261,7 +261,22 @@ renderLog = (commits, opt={}) ->
 
     dates = if long then commits.map((c) -> String(c.date ? '')) else collapseDates(commits)
 
-    commits.map((c, i) -> renderCommit(c, width, long, t, dates[i])).join('\n')
+    out = []
+
+    commits.forEach (c, i) ->
+
+        block = renderCommit(c, width, long, t, dates[i])
+
+        for l in block.lines
+            out.push l
+
+        #  A commit that has a body is set off from the next one by a blank
+        #  line: the fade says where the body ends, the blank line says it
+        #  again in space. A commit without a body stays where it is.
+
+        if block.body > 0 and i < commits.length - 1 then out.push ''
+
+    out.join('\n')
 
 PREFIX_WIDTH      = 7 + 1 + 12 + 1 + NAME_WIDTH + 1
 NARROW_WIDTH      = 60
@@ -336,6 +351,39 @@ splitLong = (word, width) ->
 
     chunks
 
+#  The body of a message is painted in grey, fading from a light grey at the
+#  top of the block to a dark grey at the bottom. The title above it keeps the
+#  colour of the terminal, so that the end of one commit and the start of the
+#  next are told apart by the colour alone.
+#
+#  Blank lines keep their place but take no step of the fade: it runs over the
+#  lines that carry text.
+
+paintBody = (lines, indent, t) ->
+
+    total = 0
+    for l in lines
+        if l != '' then total += 1
+
+    out = []
+    step = 0
+    count = 0
+
+    for l in lines
+        if l == ''
+            out.push ''
+            continue
+        out.push(indent + t.logBody(l, step, total))
+        step += 1
+        count += 1
+
+    lines: out
+    body: count
+
+#  One commit, rendered: its lines and the number of body lines among them.
+#  The title is the first line of the message; the rest is the body, and a
+#  body is what the fade and the blank line are for.
+
 renderCommit = (c, width, long, t, date=c.date ? '') ->
 
     hash = t.logHash(c.hash ? '')
@@ -356,12 +404,16 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
         #  The minimum-width floor is a preference, never a licence to exceed the
         #  terminal: a 30-column window must not emit a 42-column line.
 
-        if long then lines = wrap(text, inner)
-        else lines = [truncate(text, Math.min(Math.max(inner, MIN_MESSAGE_WIDTH), width - NARROW_INDENT))]
+        if long
 
-        rest = lines.map (l) -> indent + l
+            lines = wrap(text, inner)
+            painted = paintBody(lines.slice(1), indent, t)
 
-        return [prefix.trimEnd()].concat(rest).join('\n')
+            return {lines: [prefix.trimEnd(), indent + lines[0]].concat(painted.lines), body: painted.body}
+
+        lines = [truncate(text, Math.min(Math.max(inner, MIN_MESSAGE_WIDTH), width - NARROW_INDENT))]
+
+        return {lines: [prefix.trimEnd(), indent + lines[0]], body: 0}
 
     budget = Math.max(width - PREFIX_WIDTH, 1)
     text = if long then body else firstLine(c)
@@ -371,17 +423,17 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
         lines = wrap text, budget
         indent = ' '.repeat PREFIX_WIDTH
 
-        rest = lines.slice(1).map (l) -> if l == '' then '' else indent + l
+        painted = paintBody(lines.slice(1), indent, t)
 
-        return [prefix + lines[0]].concat(rest).join('\n')
+        return {lines: [prefix + lines[0]].concat(painted.lines), body: painted.body}
 
     #  Short: one line, truncated to fit the remaining budget. When the budget is
     #  below MIN_MESSAGE_WIDTH the message is emitted whole and the terminal wraps
     #  it, because a 30-column stub is less use than a long line.
 
-    if budget < MIN_MESSAGE_WIDTH then ⮐ prefix + text
+    if budget < MIN_MESSAGE_WIDTH then ⮐ {lines: [prefix + text], body: 0}
 
-    prefix + truncate(text, budget)
+    {lines: [prefix + truncate(text, budget)], body: 0}
 
 firstLine = (c) ->
 

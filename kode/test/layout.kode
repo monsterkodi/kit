@@ -183,6 +183,36 @@ widest = (s) -> Math.max.apply null, widths(s)
         long.includes('A body paragraph') ▸ yes
         not short.includes('A body paragraph') ▸ yes
 
+    ▸ a body is set off from the next commit by a blank line
+
+        body = 'the subject\n\nthe body of the message'
+        out = plain render.renderLog([commit({subject: body, body}), commit({hash: 'def5678'})], {width: 80, long: true})
+        lines = out.split '\n'
+
+        lines[3] ▸ ''
+        matches lines[4], /^def5678\x20/
+
+    ▸ a message without a body gets no blank line
+
+        out = plain render.renderLog([commit({subject: 'a message', body: 'a message'}), commit({hash: 'def5678', subject: 'another', body: 'another'})], {width: 80, long: true})
+
+        out.split('\n').length ▸ 2
+
+    ▸ the short layout leaves no blank line behind
+
+        body = 'the subject\n\nthe body of the message'
+        out = plain render.renderLog([commit({subject: body, body}), commit({hash: 'def5678'})], {width: 80})
+
+        out.split('\n').length ▸ 2
+
+    ▸ the last body is not followed by a blank line
+
+        body = 'the subject\n\nthe body of the message'
+        out = plain render.renderLog([commit({subject: body, body})], {width: 80, long: true})
+
+        out.split('\n').length ▸ 3
+        out.endsWith('\n') ▸ no
+
 ▸ parseArgs
 
     ▸ no arguments is short mode, whole history

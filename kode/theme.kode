@@ -6,6 +6,28 @@
    ███     ███   ███  ████████  ███   ███  ████████
 ###
 
+#  The body of a message in a long log fades from a light grey at the top of
+#  the block to a dark grey at the bottom, so that one commit's message reads
+#  as a block and the next one stands clear of it.
+#
+#  The greys of the 256-colour palette run from 232 (darkest) to 255
+#  (lightest), so a bigger code is a lighter grey.
+
+BODY_TOP = 250
+BODY_BOTTOM = 239
+
+#  The grey of line `i` of a body of `n` lines.
+
+bodyGrey = (i, n) ->
+
+    if not (i is num) then i = 0
+    if not (n is num) then n = 1
+
+    if n <= 1 then ⮐ BODY_TOP
+
+    span = BODY_TOP - BODY_BOTTOM
+    BODY_TOP - Math.round(span * i / (n - 1))
+
 createTheme = enabled ->
 
     wrap = open close -> (s) -> String(if enabled ➜ "\u001b[#{open}m#{s}\u001b[#{close}m" else s)
@@ -33,6 +55,7 @@ createTheme = enabled ->
     logHash:        fg(245)
     logDate:        fg(39)
     logName:        fg(41)
+    logBody:        (s, i, n) -> fg(bodyGrey(i, n))(s)
 
     branch:   s -> if enabled ➜ "\u001b[1m\u001b[38;5;39m#{s}\u001b[39m\u001b[0m" else String(s)
     repoPath: s -> bg(25)(fg(226)(" #{s} "))
