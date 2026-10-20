@@ -1,0 +1,130 @@
+###
+█████████  ███   ███  ████████  ██     ██  ████████
+   ███     ███   ███  ███       ███   ███  ███
+   ███     █████████  ███████   █████████  ███████
+   ███     ███   ███  ███       ███ █ ███  ███
+   ███     ███   ███  ████████  ███   ███  ████████
+###
+
+use ../git
+use ../render
+use ../theme
+use ./style
+use ./helpers ▪ matches notMatches
+
+SGR = /\u001b\[[0-9;]*m/g
+
+strip = (s) -> s.replace SGR, ''
+
+setNoColor = (value) ->
+
+    if value == undefined then delete process.env.NO_COLOR
+    else process.env.NO_COLOR = value
+
+withNoColor = (value, fn) ->
+
+    before = process.env.NO_COLOR
+    setNoColor value
+
+    try
+        r = fn()
+    catch err
+        setNoColor before
+        throw err
+
+    setNoColor before
+    r
+
+names = [
+    'add' 'del' 'mod' 'untracked' 'branch' 'repoPath' 'dim' 'bold'
+    'headStaged' 'headCommitted' 'headUnstaged' 'headUntracked' 'ahead' 'behind'
+    'logHash' 'logDate' 'logName'
+    ]
+
+tree = ->
+    raw = [
+        '# branch.oid abc123def456'
+        '# branch.head main'
+        '1 A. N... 100644 100644 100644 a b src/new.mjs'
+        '? build/'
+        ].join('\0') + '\0'
+    git.parseStatusV2 raw
+
+commit = hash: 'c63ebbf', date: 'Oct  2 00:18', name: 'Thorsten', subject: 'third'
+
+cases =
+    status: -> render.renderStatus(tree(), {theme: style.plainTheme})
+    log: -> render.renderLog([commit], {theme: style.plainTheme})
+    entry: -> render.renderEntry({path: 'a.mjs', code: 'M'}, {theme: style.plainTheme})
+    commit: -> render.renderCommitSuccess('[master e3cd348] fourth', {theme: style.plainTheme})
+
+all = -> Object.fromEntries(Object.entries(cases).map(([k, fn]) -> [k, fn()]))
+
+▸ createTheme
+
+    ▸ a plain palette emits no escape sequences
+
+        t = theme.createTheme false
+        t.enabled ▸ false
+
+        for name in names
+            notMatches t[name]('x'), SGR
+
+    ▸ an enabled palette colours, and passes text through
+
+        t = theme.createTheme true
+        t.enabled ▸ true
+
+        hasColour = (s) -> (new RegExp(SGR)).test s
+
+        hasColour(t.add('x')) ▸ yes
+        hasColour(t.dim('x')) ▸ yes
+        hasColour(t.branch('main')) ▸ yes
+        strip(t.dim('keep this')) ▸ 'keep this'
+
+    ▸ both palettes render the same text once stripped
+
+        on  = theme.createTheme true
+        off = theme.createTheme false
+
+        for name in ['add' 'del' 'branch' 'repoPath' 'dim' 'logHash']
+            strip(on[name]('x')) ▸ strip(off[name]('x'))
+
+▸ theme
+
+    ▸ the default palette follows NO_COLOR as loaded
+
+        colour = withNoColor('1', -> theme.createTheme(false))
+        colour.enabled ▸ false
+
+        plain = withNoColor(undefined, -> theme.createTheme(true))
+        plain.enabled ▸ true
+
+        typeof(theme.theme.enabled) ▸ 'boolean'
+
+▸ renderers
+
+    ▸ output does not depend on NO_COLOR once a palette is passed
+
+        unset = withNoColor(undefined, -> all())
+        set = withNoColor('1', -> all())
+
+        for key in Object.keys cases
+            set[key] ▸ unset[key]
+            notMatches unset[key], SGR
+
+    ▸ the palette argument wins over the environment
+
+        enabled = theme.createTheme true
+
+        forcedPlain = withNoColor('1', -> render.renderLog([commit], {theme: theme.createTheme(false)}))
+        notMatches forcedPlain, SGR
+
+        forcedColour = withNoColor(undefined, -> render.renderLog([commit], {theme: enabled}))
+        matches forcedColour, SGR
+
+    ▸ an omitted palette falls back to the default, not a crash
+
+        out = render.renderLog [commit], {width: 200}
+
+        out.includes('third') ▸ yes

@@ -1,0 +1,291 @@
+###
+███       ███████    ███████
+███      ███   ███  ███
+███      ███   ███  ███  ████
+███      ███   ███  ███   ███
+███████   ███████    ███████
+###
+
+#  `kit log` parsing and rendering.
+
+use ../git
+use ../render
+use ../theme
+use ./style
+use ./helpers ▪ matches notMatches
+
+#  One record exactly as git writes it for --format=%x00%h%x00%ad%x00%an%x00%s%x00:
+
+record = (h, d, n, s) -> "\0#{h}\0#{d}\0#{n}\0#{s}\0\n"
+
+commit = (over={}) ->
+
+    base =
+        hash: 'abc1234'
+        date: 'Oct  1 23:53'
+        name: 'Thorsten'
+        subject: 'a message'
+
+    Object.assign base, over
+
+dated = (dates...) ->
+
+    dates.map (date, i) -> commit({hash: 'abc1234', date, subject: "m#{i}"})
+
+▸ parseLog
+
+    ▸ reads one record per line
+
+        first = record('41f3542', 'Oct  1 23:53', 'Thorsten', 'a message')
+        second = record('3421d42', 'Oct  1 23:49', 'Thorsten', 'another')
+        raw = first + second
+
+        git.parseLog(raw) ▸ [
+            {hash: '41f3542', date: 'Oct  1 23:53', name: 'Thorsten', subject: 'a message', body: 'a message'}
+            {hash: '3421d42', date: 'Oct  1 23:49', name: 'Thorsten', subject: 'another', body: 'another'}
+        ]
+
+    ▸ no trailing newline on the last record
+
+        raw = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'only one').replace(/\n$/, '')
+        out = git.parseLog raw
+
+        out.length ▸ 1
+        out[0].subject ▸ 'only one'
+
+    ▸ empty input yields nothing
+
+        git.parseLog('') ▸ []
+        git.parseLog('\n') ▸ []
+
+    ▸ subject containing spaces and colons survives intact
+
+        subject = 'fix: handle empty tree and  spaces'
+        out = git.parseLog record('abc1234', 'Oct  1 23:53', 'Thorsten', subject)
+
+        out[0].subject ▸ subject
+
+    ▸ unicode author and subject survive
+
+        out = git.parseLog record('abc1234', 'Jun 15 14:30', 'Zoë Müller', 'ünïcödé ✓')
+
+        out[0].name ▸ 'Zoë Müller'
+        out[0].subject ▸ 'ünïcödé ✓'
+
+    ▸ no newline leaks into the next record hash
+
+        first = record('aaa1111', 'Oct  1 23:53', 'Thorsten', 'first')
+        second = record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second')
+        raw = first + second
+
+        for c in git.parseLog(raw)
+            not c.hash.includes('\n') ▸ yes
+            not c.date.includes('\n') ▸ yes
+            not c.name.includes('\n') ▸ yes
+
+    ▸ a multi-line %B body stays with its own record
+
+        body = 'subject\n\nbody para one\nbody para one b\n\npara two'
+
+        first = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
+        second = record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second')
+        raw = first + second
+
+        out = git.parseLog raw
+
+        out.length ▸ 2
+        out[0].subject ▸ body
+        out[1].subject ▸ 'second'
+
+    ▸ a body containing a record separator does not break parsing
+
+        body = 'subject\n\nbody with \x1e inside'
+
+        first = record('aaa1111', 'Oct  1 23:53', 'Thorsten', body)
+        second = record('bbb2222', 'Oct  1 23:52', 'Thorsten', 'second')
+        raw = first + second
+
+        out = git.parseLog raw
+
+        out.length ▸ 2
+        out[0].subject.includes('\x1e') ▸ yes
+
+▸ fitName
+
+    ▸ pads to exactly 8 characters
+
+        render.NAME_WIDTH ▸ 8
+        render.fitName('Thorsten') ▸ 'Thorsten'
+        render.fitName('opencode') ▸ 'opencode'
+        render.fitName('zoe') ▸ 'zoe     '
+        render.fitName('zoe').length ▸ 8
+
+    ▸ crops names longer than 8
+
+        render.fitName('Christopher') ▸ 'Christop'
+        render.fitName('Thorsten Kohnhorst') ▸ 'Thorsten'
+
+    ▸ handles empty and missing names
+
+        render.fitName('') ▸ '        '
+        render.fitName(undefined) ▸ '        '
+
+▸ renderLog
+
+    ▸ one line per commit
+
+        out = render.renderLog([commit(), commit({hash: 'def5678', subject: 'another'})], {theme: style.plainTheme})
+
+        out.split('\n').length ▸ 2
+
+    ▸ empty history renders nothing
+
+        render.renderLog([], {theme: style.plainTheme}) ▸ ''
+        render.renderLog(null, {theme: style.plainTheme}) ▸ ''
+
+    ▸ fields appear in order
+
+        out = render.renderLog([commit()], {theme: style.plainTheme})
+
+        out ▸ 'abc1234 Oct  1 23:53 Thorsten a message'
+
+    ▸ subject column aligns across rows regardless of name length
+
+        out = render.renderLog [
+            commit({name: 'Thorsten', subject: 'long-ish subject'})
+            commit({name: 'zoe', subject: 'x'})
+        ], {theme: style.plainTheme}
+
+        positions = out.split('\n').map((l) -> if l.indexOf('x') >= 0 then l.indexOf('x') else -1)
+        firstSubject = out.split('\n')[0].indexOf 'long-ish subject'
+
+        positions[1] ▸ firstSubject
+
+    ▸ colours each column differently
+
+        out = render.renderLog([commit()], {theme: theme.createTheme(true)})
+
+        codes = out.match(/\u001b\[38;5;\d+m/g).map((s) -> s.match(/\d+(?=m$)/)[0])
+
+        codes ▸ ['245' '39' '41']
+
+    ▸ the same commit rendered plain has no escapes at all
+
+        out = render.renderLog([commit()], {theme: theme.createTheme(false)})
+
+        notMatches out, /\u001b\[/
+        matches out, /a\x20message/
+
+    ▸ subject is never truncated or recoloured
+
+        subject = 'fix: a long subject line that should be left completely alone'
+        out = render.renderLog([commit({subject})], {width: 200})
+
+        out.endsWith(subject) ▸ yes
+
+    ▸ a repeated date is blanked on the line below
+
+        out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00'), {theme: style.plainTheme})
+
+        out.split('\n')[1] ▸ 'abc1234        15:00 Thorsten m1'
+
+    ▸ blanking a date leaves the subject column where it was
+
+        out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00', 'Nov  9 00:00'), {theme: style.plainTheme})
+
+        columns = out.split('\n').map((l) -> l.indexOf 'Thorsten')
+
+        (new Set(columns)).size ▸ 1
+
+    ▸ -l writes every date out in full
+
+        out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00'), {theme: style.plainTheme, long: true})
+
+        out.split('\n')[1] ▸ 'abc1234 Oct  1 15:00 Thorsten m1'
+
+    ▸ a blanked date is still coloured as one column
+
+        out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00'), {theme: theme.createTheme(true)})
+
+        codes = out.split('\n')[1].match(/\u001b\[38;5;\d+m/g).map((s) -> s.match(/\d+(?=m$)/)[0])
+
+        codes ▸ ['245' '39' '41']
+
+    ▸ the narrow layout blanks a repeated date too
+
+        out = render.renderLog(dated('Oct  1 14:00', 'Oct  1 15:00'), {theme: style.plainTheme, width: 50})
+
+        matches out.split('\n')[2], /^abc1234\x20{8}15:00\x20Thorsten$/
+
+▸ collapseDates
+
+    ▸ the first date is always written out in full
+
+        render.collapseDates(dated('Nov  9 00:00')) ▸ ['Nov  9 00:00']
+
+    ▸ a repeated day keeps only its time
+
+        out = render.collapseDates dated('Oct  1 14:00', 'Oct  1 15:00')
+
+        out ▸ ['Oct  1 14:00', '       15:00']
+
+    ▸ the same month on another day blanks the month alone
+
+        out = render.collapseDates dated('Oct  1 14:00', 'Oct  5 00:01')
+
+        out ▸ ['Oct  1 14:00', '     5 00:01']
+
+    ▸ a new month is written out in full again
+
+        out = render.collapseDates dated('Oct  9 12:00', 'Nov  9 00:00')
+
+        out ▸ ['Oct  9 12:00', 'Nov  9 00:00']
+
+    ▸ a repeated day number is kept whole, not cut into the digits
+
+        out = render.collapseDates dated('Nov  9 00:00', 'Nov 10 10:10', 'Nov 13 12:11')
+
+        out ▸ ['Nov  9 00:00', '    10 10:10', '    13 12:11']
+
+    ▸ the comparison is against the date above, not the line as printed
+
+        out = render.collapseDates dated('Oct  1 14:00', 'Oct  1 15:00', 'Oct  2 09:30')
+
+        out ▸ ['Oct  1 14:00', '       15:00', '     2 09:30']
+
+    ▸ blanking is only ever spaces, so the width never moves
+
+        raw = ['Oct  1 14:00', 'Oct  5 00:01', 'Nov  9 00:00', 'Nov 10 10:10']
+
+        out = render.collapseDates dated.apply(null, raw)
+
+        entries = out.entries()
+
+        for e in entries
+            e[1].length ▸ raw[e[0]].length
+
+    ▸ a run of commits across months and days
+
+        out = render.collapseDates dated(
+            'Oct  1 14:00'
+            'Oct  1 15:00'
+            'Oct  5 00:01'
+            'Oct  5 12:13'
+            'Oct  6 12:00'
+            'Oct  9 12:00'
+            'Nov  9 00:00'
+            'Nov 10 10:10'
+            'Nov 13 12:11'
+        )
+
+        out ▸ [
+            'Oct  1 14:00'
+            '       15:00'
+            '     5 00:01'
+            '       12:13'
+            '     6 12:00'
+            '     9 12:00'
+            'Nov  9 00:00'
+            '    10 10:10'
+            '    13 12:11'
+        ]

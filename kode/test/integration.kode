@@ -1,0 +1,1134 @@
+
+#  tests command modules against real throwaway repositories.
+#
+#  Each test builds a temp repo, sets an identity so commit works without
+#  touching the user's global git config, and asserts on real git behaviour.
+#
+#  Two rules the rest of the suite has already learned, both load-bearing here:
+#  a regex literal may not contain a space (\x20 instead), and a finally that
+#  returns swallows the error it was meant to report — a try/finally whose
+#  cleanup is its last statement eats every failure in the try. So the
+#  cleanup is the last statement of a section, and withCwd puts the directory
+#  back itself.
+
+use fs os path child_process
+use ../status
+use ../add
+use ../commit
+use ../log
+use ./style
+use ./helpers ▪ matches notMatches
+
+newRepo = (where) ->
+
+    own = where == undefined
+    dir = if own then fs.mkdtempSync(path.join(os.tmpdir(), 'kit-test-')) else where
+    if not own then fs.mkdirSync(dir, {recursive: true})
+
+    env = Object.assign {}, process.env, {
+        GIT_AUTHOR_NAME: 'test'
+        GIT_AUTHOR_EMAIL: 't@e.st'
+        GIT_COMMITTER_NAME: 'test'
+        GIT_COMMITTER_EMAIL: 't@e.st'
+    }
+
+    git = (args...) ->
+        child_process.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
+            cwd: dir
+            encoding: 'utf8'
+            env: env
+        }
+
+    git 'init', '-q'
+
+    #  a branch that is neither main nor master: kit hides those two in the
+    #  header, and the header assertions want to see the branch
+
+    git 'symbolic-ref', 'HEAD', 'refs/heads/test'
+
+    branch = git('symbolic-ref', '--short', 'HEAD').trim()
+
+    if own then cleanup = -> fs.rmSync(dir, {recursive: true, force: true})
+    else cleanup = ->
+
+    dir: dir
+    git: git
+    env: env
+    branch: branch
+    cleanup: cleanup
+
+sink = ->
+
+    out = []
+    err = []
+
+    log = (s) -> out.push s
+    error = (s) -> err.push s
+    text = -> out.join('\n')
+
+    out: out
+    err: err
+    log: log
+    error: error
+    text: text
+    opts: {theme: style.plainTheme}
+
+#  Run fn in dir and hand back what it returned. The directory is put back
+#  either way, and the value survives: the old version returned the value of
+#  the chdir, which is nothing at all.
+
+withCwd = (dir, fn) ->
+
+    prev = process.cwd()
+    process.chdir dir
+
+    try
+        r = fn()
+    catch err
+        throw err
+    finally
+        process.chdir prev
+
+    r
+
+withRemote = ->
+
+    parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-remote-')
+    origin = path.join parent, 'origin.git'
+
+    fs.mkdirSync origin
+    child_process.execFileSync 'git', ['init' '-q' '--bare' '.'], {cwd: origin, stdio: 'pipe'}
+
+    #  the bare repo points at the same branch, so a clone lands on it
+
+    child_process.execFileSync 'git', ['symbolic-ref', 'HEAD', 'refs/heads/test'], {cwd: origin, stdio: 'pipe'}
+
+    local = newRepo path.join(parent, 'local')
+    local.git 'remote', 'add', 'origin', origin
+    fs.writeFileSync path.join(local.dir, 'a.txt'), 'a\n'
+    local.git 'add', '-A'
+    local.git 'commit', '-qm', 'init'
+
+    #  -u is what gives it an upstream
+    local.git 'push', '-q', '-u', 'origin', local.branch
+
+    other = ->
+        dir = path.join parent, 'other'
+        child_process.execFileSync 'git', ['clone' '-q' origin dir], {encoding: 'utf8', env: local.env}
+        git = (args...) ->
+            child_process.execFileSync 'git', ['-c' 'user.email=t@e.st' '-c' 'user.name=test'].concat(args), {
+                cwd: dir
+                encoding: 'utf8'
+                env: local.env
+            }
+        dir: dir
+        git: git
+
+    parent: parent
+    local: local
+    other: other
+
+dirtyRepo = (where) ->
+
+    r = newRepo where
+    fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+    r.git 'add', '-A'
+    r.git 'commit', '-qm', 'init'
+    fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+    r
+
+twoSiblings = ->
+
+    parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-paths-')
+    parent: parent
+    a: dirtyRepo(path.join(parent, 'a'))
+    b: dirtyRepo(path.join(parent, 'b'))
+
+nest = ->
+
+    parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-nest-')
+    parent: parent
+    a: dirtyRepo(path.join(parent, 'a'))
+    b: dirtyRepo(path.join(parent, 'b'))
+
+repoWithCommits = (n) ->
+
+    r = newRepo()
+
+    for i in 1...n + 1
+        fs.writeFileSync path.join(r.dir, "f#{i}.txt"), "#{i}\n"
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', "commit #{i}"
+
+    r
+
+datedRepo = ->
+
+    r = newRepo()
+
+    dated = (msg, iso) ->
+        fs.writeFileSync path.join(r.dir, "#{msg}.txt"), "#{msg}\n"
+        r.git 'add', '-A'
+        env = Object.assign {}, r.env, {GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso}
+        child_process.execFileSync 'git', ['commit', '-qm', msg], {cwd: r.dir, encoding: 'utf8', env}
+
+    dated 'first', '2020-05-04T09:15:00 +0000'
+    dated 'second', '2020-05-04T11:45:00 +0000'
+    dated 'third', '2020-06-07T08:30:00 +0000'
+
+    r
+
+dateOf = (line) -> line.slice 8, 20
+
+localDate = (month, iso, minutes) ->
+
+    d = new Date iso
+    day = String(d.getDate()).padStart 2, ' '
+    "#{month} #{day} #{String(d.getHours()).padStart(2, '0')}:#{minutes}"
+
+blanked = (date) -> ' '.repeat(date.length - 5) + date.slice(-5)
+
+FIRST = localDate 'May', '2020-05-04T09:15:00Z', '15'
+SECOND = localDate 'May', '2020-05-04T11:45:00Z', '45'
+THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
+
+▸ messageFor
+
+    ▸ joins words like the bash function did
+
+        commit.messageFor(['this' 'is' 'a' 'commit' 'message']) ▸ 'this is a commit message'
+        commit.messageFor(['fix' '   the' '  thing']) ▸ 'fix    the   thing'
+        commit.messageFor([]) ▸ 'misc'
+        commit.messageFor(['']) ▸ 'misc'
+        commit.messageFor(['   ']) ▸ 'misc'
+
+▸ status
+
+    ▸ a clean repo is completely silent and exits 0
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        code = withCwd(r.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ a clean tree in sync with its remote stays silent
+
+        w = withRemote()
+
+        io = sink()
+        code = withCwd(w.local.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        fs.rmSync(w.parent, {recursive: true, force: true})
+
+    ▸ a clean tree ahead of its remote prints the header alone
+
+        w = withRemote()
+
+        fs.writeFileSync path.join(w.local.dir, 'b.txt'), 'b\n'
+        w.local.git 'add', '-A'
+        w.local.git 'commit', '-qm', 'unpushed'
+
+        io = sink()
+        code = withCwd(w.local.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+
+        out = style.plain io.text()
+
+        out.split('\n').length ▸ 1
+        matches out, style.headerOf(w.local.dir, "#{w.local.branch} ↑1")
+
+        fs.rmSync(w.parent, {recursive: true, force: true})
+
+    ▸ a clean tree behind its remote prints the header alone
+
+        w = withRemote()
+
+        theirs = w.other()
+        fs.writeFileSync path.join(theirs.dir, 'b.txt'), 'b\n'
+        theirs.git 'add', '-A'
+        theirs.git 'commit', '-qm', 'theirs'
+        theirs.git 'push', '-q', 'origin', w.local.branch
+
+        #  the remote-tracking ref is what status compares against
+        w.local.git 'fetch', '-q'
+
+        io = sink()
+        code = withCwd(w.local.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+
+        out = style.plain io.text()
+
+        out.split('\n').length ▸ 1
+        matches out, style.headerOf(w.local.dir, "#{w.local.branch} ↓1")
+
+        fs.rmSync(w.parent, {recursive: true, force: true})
+
+    ▸ a remote that has never been pushed to stays silent
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        r.git 'remote', 'add', 'origin', path.join(r.dir, 'nowhere.git')
+
+        io = sink()
+        code = withCwd(r.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ a dirty repo prints branch, sections and untracked dir collapsed
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+        fs.mkdirSync path.join(r.dir, 'build', 'deep'), {recursive: true}
+        fs.writeFileSync path.join(r.dir, 'build', 'deep', 'x.txt'), 'x\n'
+
+        io = sink()
+        code = withCwd(r.dir, -> status.status([], io, io.opts))
+
+        code ▸ 0
+        matches io.text(), style.headerOf(r.dir, r.branch)
+        matches io.text(), style.headingOf('unstaged')
+        matches io.text(), style.headingOf('untracked')
+        matches io.text(), /\?\x20build\//
+        notMatches io.text(), /build\/deep\/x\.txt/
+
+        r.cleanup()
+
+    ▸ unaffected by the committed view — still says staged, uppercase
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+        r.git 'add', 'a.txt'
+
+        io = sink()
+        withCwd(r.dir, -> status.status([], io, io.opts))
+
+        out = io.text()
+
+        matches out, style.headingOf('staged')
+        notMatches out, /committed/
+        matches out, /M\x20a\.txt/
+
+        r.cleanup()
+
+    ▸ the header names the repository root, not the directory run in
+
+        r = dirtyRepo()
+
+        fs.mkdirSync path.join(r.dir, 'sub')
+
+        io = sink()
+        code = withCwd(path.join(r.dir, 'sub'), -> status.status([], io, io.opts))
+
+        code ▸ 0
+        matches io.text(), style.headerOf(r.dir, r.branch)
+        matches io.text(), /M\x20\.\.\/a\.txt/
+
+        r.cleanup()
+
+    ▸ a path argument reports that repository
+
+        r = dirtyRepo()
+
+        io = sink()
+        status.status([r.dir], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(r.dir, r.branch)
+        matches io.text(), /M\x20a\.txt/
+
+        r.cleanup()
+
+    ▸ two paths give two reports, in the order given
+
+        s = twoSiblings()
+
+        forward = sink()
+        status.status([s.a.dir, s.b.dir], forward, forward.opts) ▸ 0
+        matches forward.text(), style.headerOf(s.a.dir, s.a.branch)
+        matches forward.text(), style.headerOf(s.b.dir, s.b.branch)
+        forward.text().indexOf(s.a.dir) < forward.text().indexOf(s.b.dir) ▸ yes
+
+        reverse = sink()
+        status.status([s.b.dir, s.a.dir], reverse, reverse.opts) ▸ 0
+        reverse.text().indexOf(s.b.dir) < reverse.text().indexOf(s.a.dir) ▸ yes
+
+        fs.rmSync(s.parent, {recursive: true, force: true})
+
+    ▸ a path argument replaces the current directory, it is not added to it
+
+        s = twoSiblings()
+
+        io = sink()
+        code = withCwd(s.a.dir, -> status.status([s.b.dir], io, io.opts))
+
+        code ▸ 0
+        matches io.text(), style.headerOf(s.b.dir, s.b.branch)
+        not io.text().includes(s.a.dir) ▸ yes
+
+        fs.rmSync(s.parent, {recursive: true, force: true})
+
+    ▸ relative paths resolve against the directory kit started in
+
+        s = twoSiblings()
+
+        io = sink()
+        code = withCwd(s.a.dir, -> status.status(['.', '../b'], io, io.opts))
+
+        code ▸ 0
+        matches io.text(), style.headerOf(s.a.dir, s.a.branch)
+        matches io.text(), style.headerOf(s.b.dir, s.b.branch)
+
+        fs.rmSync(s.parent, {recursive: true, force: true})
+
+    ▸ a relative path from a subdirectory climbs back out
+
+        s = twoSiblings()
+
+        fs.mkdirSync path.join(s.a.dir, 'sub')
+
+        io = sink()
+        code = withCwd(path.join(s.a.dir, 'sub'), -> status.status(['../../b'], io, io.opts))
+
+        code ▸ 0
+        matches io.text(), style.headerOf(s.b.dir, s.b.branch)
+
+        fs.rmSync(s.parent, {recursive: true, force: true})
+
+    ▸ a clean repository in the list contributes nothing
+
+        parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-paths-')
+
+        dirty = dirtyRepo path.join(parent, 'dirty')
+        clean = newRepo path.join(parent, 'clean')
+        fs.writeFileSync path.join(clean.dir, 'a.txt'), 'a\n'
+        clean.git 'add', '-A'
+        clean.git 'commit', '-qm', 'init'
+
+        io = sink()
+        status.status([clean.dir, dirty.dir], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(dirty.dir, dirty.branch)
+        not io.text().includes(clean.dir) ▸ yes
+
+        fs.rmSync(parent, {recursive: true, force: true})
+
+    ▸ a path that is not a repository is named, and the rest still report
+
+        r = dirtyRepo()
+        stranger = fs.mkdtempSync path.join(os.tmpdir(), 'kit-stranger-')
+
+        io = sink()
+        code = status.status([r.dir, stranger], io, io.opts)
+
+        code ▸ 128
+        io.err.join('\n').includes(stranger) ▸ yes
+        matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+        matches io.text(), style.headerOf(r.dir, r.branch)
+
+        fs.rmSync(stranger, {recursive: true, force: true})
+        r.cleanup()
+
+    ▸ a path that does not exist is reported as such, not as a bad repo
+
+        missing = path.join os.tmpdir(), 'kit-absent-42'
+
+        io = sink()
+        code = status.status [missing], io, io.opts
+
+        code ▸ 128
+        io.err.join('\n').includes(missing) ▸ yes
+        matches io.err.join('\n'), /no\x20such\x20directory/
+        notMatches io.err.join('\n'), /not\x20a\x20git\x20repository/
+        io.text() ▸ ''
+
+    ▸ a bare repository and a .git directory are not work trees
+
+        parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-bare-')
+
+        bare = path.join parent, 'bare.git'
+        fs.mkdirSync bare
+        child_process.execFileSync 'git', ['init', '-q', '--bare', '.'], {cwd: bare, stdio: 'pipe'}
+        repo = newRepo path.join(parent, 'repo')
+
+        for p in [bare, path.join(repo.dir, '.git')]
+            io = sink()
+            status.status([p], io, io.opts) ▸ 128
+            matches io.err.join('\n'), /no\x20work\x20tree/
+            io.text() ▸ ''
+
+        fs.rmSync(parent, {recursive: true, force: true})
+
+    ▸ a directory that is not a repository reports the ones one level down
+
+        n = nest()
+
+        io = sink()
+        status.status([n.parent], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+        matches io.text(), style.headerOf(n.b.dir, n.b.branch)
+        io.text().indexOf(n.a.dir) < io.text().indexOf(n.b.dir) ▸ yes
+        io.err.length ▸ 0
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ the shell directory is looked one level down too
+
+        n = nest()
+
+        io = sink()
+        withCwd(n.parent, -> status.status([], io, io.opts)) ▸ 0
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+        matches io.text(), style.headerOf(n.b.dir, n.b.branch)
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ a clean repository one level down contributes nothing
+
+        n = nest()
+
+        clean = newRepo path.join(n.parent, 'clean')
+        fs.writeFileSync path.join(clean.dir, 'a.txt'), 'a\n'
+        clean.git 'add', '-A'
+        clean.git 'commit', '-qm', 'init'
+
+        io = sink()
+        status.status([n.parent], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+        not io.text().includes(clean.dir) ▸ yes
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ a directory with no repository below it is still not a repository
+
+        parent = fs.mkdtempSync path.join(os.tmpdir(), 'kit-empty-')
+
+        io = sink()
+        status.status([parent], io, io.opts) ▸ 128
+        matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+        io.err.join('\n').includes(parent) ▸ yes
+        io.text() ▸ ''
+
+        fs.rmSync(parent, {recursive: true, force: true})
+
+    ▸ a plain file below a directory is not a repository to report
+
+        n = nest()
+
+        fs.writeFileSync path.join(n.parent, 'a', 'notes.txt'), 'x\n'
+
+        io = sink()
+        status.status([path.join(n.parent, 'a', 'notes.txt')], io, io.opts) ▸ 128
+        matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ dot directories and plain directories one level down are skipped
+
+        n = nest()
+
+        fs.mkdirSync path.join(n.parent, '.cache')
+
+        #  a repository, but under a dot directory
+        dirtyRepo path.join(n.parent, '.cache', 'hidden')
+
+        #  a directory that is not a repository
+        fs.mkdirSync path.join(n.parent, 'notes')
+
+        io = sink()
+        status.status([n.parent], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+        not io.text().includes('hidden') ▸ yes
+        not io.text().includes('notes') ▸ yes
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ a repository reached through a symlink one level down is reported
+
+        n = nest()
+
+        fs.symlinkSync n.a.dir, path.join(n.parent, 'linked'), 'dir'
+
+        io = sink()
+        status.status([n.parent], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+    ▸ a repository that contains another repository reports only itself
+
+        outer = dirtyRepo()
+        inner = dirtyRepo path.join(outer.dir, 'inner')
+
+        io = sink()
+        status.status([outer.dir], io, io.opts) ▸ 0
+        matches io.text(), style.headerOf(outer.dir, outer.branch)
+        notMatches io.text(), style.headerOf(inner.dir, inner.branch)
+
+        outer.cleanup()
+
+    ▸ one bad path among repositories that are looked into still exits 128
+
+        n = nest()
+        stranger = fs.mkdtempSync path.join(os.tmpdir(), 'kit-stranger-')
+
+        io = sink()
+        status.status([n.parent, stranger], io, io.opts) ▸ 128
+        matches io.text(), style.headerOf(n.a.dir, n.a.branch)
+        matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+
+        fs.rmSync(stranger, {recursive: true, force: true})
+        fs.rmSync(n.parent, {recursive: true, force: true})
+
+▸ add
+
+    ▸ stages new files (the -A vs . behaviour) and reports them
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'new.txt'), 'n\n'
+
+        io = sink()
+        withCwd(r.dir, -> add.add([], io, io.opts))
+
+        staged = r.git('diff', '--cached', '--name-only')
+
+        matches staged, /new\.txt/
+        matches io.text(), /A\x20new\.txt/
+
+        r.cleanup()
+
+    ▸ explicit paths are forwarded
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        fs.writeFileSync path.join(r.dir, 'b.txt'), 'b\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'aa\n'
+        fs.writeFileSync path.join(r.dir, 'b.txt'), 'bb\n'
+
+        io = sink()
+        withCwd(r.dir, -> add.add(['a.txt'], io, io.opts))
+
+        staged = r.git('diff', '--cached', '--name-only')
+
+        matches staged, /a\.txt/
+        notMatches staged, /b\.txt/
+
+        r.cleanup()
+
+    ▸ a clean tree stays silent
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        withCwd(r.dir, -> add.add([], io, io.opts))
+
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ unaffected by the committed view — still says staged, uppercase
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+
+        io = sink()
+        withCwd(r.dir, -> add.add([], io, io.opts))
+
+        out = io.text()
+
+        matches out, style.headingOf('staged')
+        notMatches out, /committed/
+        matches out, /M\x20a\.txt/
+
+        r.cleanup()
+
+▸ commit
+
+    ▸ nothing to commit while ahead prints the header rather than silence
+
+        w = withRemote()
+
+        fs.writeFileSync path.join(w.local.dir, 'b.txt'), 'b\n'
+        w.local.git 'add', '-A'
+        w.local.git 'commit', '-qm', 'unpushed'
+
+        io = sink()
+        code = withCwd(w.local.dir, -> commit.commit(['msg'], io, io.opts))
+
+        code ▸ 1
+        matches style.plain(io.text()), style.headerOf(w.local.dir, "#{w.local.branch} ↑1")
+        notMatches io.text(), /nothing\x20added\x20to\x20commit/
+
+        fs.rmSync(w.parent, {recursive: true, force: true})
+
+    ▸ words become the message, new files included
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+        fs.writeFileSync path.join(r.dir, 'brand.txt'), 'new\n'
+
+        io = sink()
+        code = withCwd(r.dir, -> commit.commit(['fix' 'the' 'prompt'], io, io.opts))
+
+        code ▸ 0
+        r.git('log', '-1', '--pretty=%s').trim() ▸ 'fix the prompt'
+
+        files = r.git 'show', '--name-only', '--pretty=format:', 'HEAD'
+
+        matches files, /brand\.txt/
+
+        r.cleanup()
+
+    ▸ no words uses the hardcoded misc message
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+
+        io = sink()
+        withCwd(r.dir, -> commit.commit([], io, io.opts))
+
+        r.git('log', '-1', '--pretty=%s').trim() ▸ 'misc'
+
+        r.cleanup()
+
+    ▸ shows the state it is about to commit, labelled committed
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'changed\n'
+        fs.writeFileSync path.join(r.dir, 'brand.txt'), 'new\n'
+
+        io = sink()
+        withCwd(r.dir, -> commit.commit(['msg'], io, io.opts))
+
+        out = io.text()
+
+        matches out, /committed/
+        notMatches out, style.headingOf('staged')
+        matches out, /a\x20brand\.txt/
+        matches out, /m\x20a\.txt/
+
+        r.cleanup()
+
+    ▸ from a subdirectory, unstaged keeps uppercase letters
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        fs.mkdirSync path.join(r.dir, 'sub'), {recursive: true}
+        fs.writeFileSync path.join(r.dir, 'sub', 'keep.txt'), 'k\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        #  unreachable from sub/
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'top-level change\n'
+
+        #  reachable
+        fs.writeFileSync path.join(r.dir, 'sub', 'keep.txt'), 'changed\n'
+
+        io = sink()
+        withCwd(path.join(r.dir, 'sub'), -> commit.commit(['msg'], io, io.opts))
+
+        out = io.text()
+
+        matches out, style.headingOf('committed')
+        matches out, /m\x20keep\.txt/
+        matches out, style.headingOf('unstaged')
+        matches out, /M\x20\.\.\/a\.txt/
+
+        r.cleanup()
+
+    ▸ nothing to commit exits 1 and stays silent on a clean tree
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        code = withCwd(r.dir, -> commit.commit(['msg'], io, io.opts))
+
+        code ▸ 1
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ a fully clean tree is silent
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        code = withCwd(r.dir, -> commit.commit(['msg'], io, io.opts))
+
+        code ▸ 1
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ a no-op from a subdirectory is silent, not git prose
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.mkdirSync path.join(r.dir, 'sub'), {recursive: true}
+        fs.writeFileSync path.join(r.dir, 'sub', 'keep.txt'), 'k\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'add sub'
+        fs.writeFileSync path.join(r.dir, 'scratch.tmp'), 'x\n'
+
+        io = sink()
+        code = withCwd(path.join(r.dir, 'sub'), -> commit.commit(['noop'], io, io.opts))
+
+        code ▸ 1
+        notMatches io.text(), /nothing\x20added\x20to\x20commit/
+        notMatches io.text(), /untracked\x20files\x20present/
+
+        r.cleanup()
+
+▸ commands
+
+    ▸ not a git repository exits 128
+
+        dir = fs.mkdtempSync path.join(os.tmpdir(), 'kit-norepo-')
+
+        runStatus = (io) -> status.status([], io, io.opts)
+        runAdd = (io) -> add.add([], io, io.opts)
+        runCommit = (io) -> commit.commit(['x'], io, io.opts)
+        runLog = (io) -> log.log([], io, io.opts)
+
+        cases = [
+            ['status', runStatus]
+            ['add', runAdd]
+            ['commit', runCommit]
+            ['log', runLog]
+        ]
+
+        for [name, invoke] in cases
+            io = sink()
+            code = withCwd(dir, -> invoke(io))
+            code ▸ 128
+            matches io.err.join('\n'), /not\x20a\x20git\x20repository/
+
+        fs.rmSync(dir, {recursive: true, force: true})
+
+    ▸ the header names the repository root too
+
+        r = dirtyRepo()
+
+        added = sink()
+        withCwd(r.dir, -> add.add([], added, added.opts))
+        matches added.text(), style.headerOf(r.dir, r.branch)
+
+        fs.writeFileSync path.join(r.dir, 'b.txt'), 'b\n'
+
+        committed = sink()
+        withCwd(r.dir, -> commit.commit(['msg'], committed, committed.opts))
+        matches committed.text(), style.headerOf(r.dir, r.branch)
+        matches committed.text(), style.headingOf('committed')
+
+        r.cleanup()
+
+▸ log
+
+    ▸ an empty history is silent and exits 0
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+
+        io = sink()
+        code = withCwd(r.dir, -> log.log([], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ lists every commit, oldest first
+
+        r = repoWithCommits 3
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, io.opts))
+
+        lines = io.text().split '\n'
+        lines.length ▸ 3
+        matches lines[0], /commit\x201$/
+        matches lines[2], /commit\x203$/
+
+        r.cleanup()
+
+    ▸ a bare number limits to that many commits
+
+        r = repoWithCommits 5
+
+        io = sink()
+        withCwd(r.dir, -> log.log(['2'], io, io.opts))
+
+        lines = io.text().split '\n'
+        lines.length ▸ 2
+
+        matches lines[0], /commit\x204$/
+        matches lines[1], /commit\x205$/
+
+        older = lines.filter (l) -> (/commit\x20[123]$/).test l
+        older.length ▸ 0
+
+        r.cleanup()
+
+    ▸ zero is silent
+
+        r = repoWithCommits 3
+
+        io = sink()
+        code = withCwd(r.dir, -> log.log(['0'], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ shows a short hash and never a full 40-character one
+
+        r = repoWithCommits 1
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, io.opts))
+
+        line = io.text()
+        full = r.git('rev-parse', 'HEAD').trim()
+        line.includes(full.slice(0, 7)) ▸ yes
+        not line.includes(full) ▸ yes
+
+        r.cleanup()
+
+    ▸ shows the author name without the email address
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+
+        env = Object.assign {}, r.env, {
+            GIT_AUTHOR_NAME: 'Thorsten'
+            GIT_COMMITTER_NAME: 'Thorsten'
+            GIT_AUTHOR_EMAIL: 't@e.st'
+        }
+
+        child_process.execFileSync 'git', ['commit', '-qm', 'authored'], {cwd: r.dir, encoding: 'utf8', env}
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, io.opts))
+
+        line = io.text()
+
+        matches line, /Thorsten/
+        not line.includes('t@e.st') ▸ yes
+
+        r.cleanup()
+
+    ▸ the date is the short absolute form without seconds
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+
+        env = Object.assign {}, r.env, {GIT_AUTHOR_DATE: '2020-01-02T03:04:05 +0000'}
+
+        child_process.execFileSync 'git', ['commit', '-qm', 'dated'], {cwd: r.dir, encoding: 'utf8', env}
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, io.opts))
+
+        local = new Date '2020-01-02T03:04:05Z'
+        hours = String(local.getHours()).padStart 2, '0'
+        want = "Jan  #{local.getDate()} #{hours}:04"
+
+        io.text().includes(want) ▸ yes
+        not (/03:04:\d\d/).test(io.text()) ▸ yes
+        not (/2020/).test(io.text()) ▸ yes
+
+        r.cleanup()
+
+    ▸ a date the line above already gave is blanked to spaces
+
+        r = datedRepo()
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, Object.assign({}, io.opts, {width: 200})))
+
+        dates = io.text().split('\n').map dateOf
+
+        dates[0] ▸ FIRST
+        dates[1] ▸ blanked(SECOND)
+        dates[2] ▸ THIRD
+
+        r.cleanup()
+
+    ▸ -l writes the date on every line, blanked or not
+
+        r = datedRepo()
+
+        io = sink()
+        withCwd(r.dir, -> log.log(['-l'], io, Object.assign({}, io.opts, {width: 200})))
+
+        io.text().split('\n').map(dateOf) ▸ [FIRST, SECOND, THIRD]
+
+        r.cleanup()
+
+    ▸ a non-numeric argument errors instead of printing everything
+
+        r = repoWithCommits 3
+
+        io = sink()
+        code = withCwd(r.dir, -> log.log(['foo'], io, io.opts))
+
+        code ▸ 1
+        io.text() ▸ ''
+        matches io.err.join('\n'), /not\x20a\x20commit\x20count/
+
+        r.cleanup()
+
+    ▸ -l shows the commit body, which short mode hides
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        fs.writeFileSync path.join(r.dir, 'msg.txt'), 'the subject line\n\nA body paragraph that only --long shows.\n\nAnd a second one.'
+        r.git 'commit', '-q', '-F', 'msg.txt'
+
+        short = sink()
+        withCwd(r.dir, -> log.log([], short, Object.assign({}, short.opts, {width: 200})))
+        matches short.text(), /the\x20subject\x20line/
+        not short.text().includes('A body paragraph') ▸ yes
+
+        long = sink()
+        withCwd(r.dir, -> log.log(['-l'], long, Object.assign({}, long.opts, {width: 200})))
+        matches long.text(), /A\x20body\x20paragraph/
+        matches long.text(), /And\x20a\x20second\x20one\./
+
+        r.cleanup()
+
+    ▸ -l and --long are equivalent
+
+        r = repoWithCommits 2
+
+        a = sink()
+        b = sink()
+        withCwd(r.dir, -> log.log(['-l', '2'], a, Object.assign({}, a.opts, {width: 100})))
+        withCwd(r.dir, -> log.log(['--long', '2'], b, Object.assign({}, b.opts, {width: 100})))
+
+        a.text() ▸ b.text()
+
+        r.cleanup()
+
+    ▸ -l with a count returns exactly that many commits
+
+        r = repoWithCommits 5
+
+        io = sink()
+        withCwd(r.dir, -> log.log(['-l', '2'], io, Object.assign({}, io.opts, {width: 100})))
+
+        hashes = io.text().match(/^[0-9a-f]{7}\x20/gm) ? []
+        hashes.length ▸ 2
+
+        r.cleanup()
+
+    ▸ -l 0 is silent
+
+        r = repoWithCommits 3
+
+        io = sink()
+        code = withCwd(r.dir, -> log.log(['-l', '0'], io, Object.assign({}, io.opts, {width: 100})))
+
+        code ▸ 0
+        io.text() ▸ ''
+
+        r.cleanup()
+
+    ▸ the output respects the terminal width it is given
+
+        r = repoWithCommits 1
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, Object.assign({}, io.opts, {width: 80})))
+
+        line = io.text().replace(/\u001b\[[0-9;]*m/g, '')
+        len = Array.from(line).length
+        len <= 80 ▸ yes
+
+        r.cleanup()
+
+    ▸ a subject with spaces and colons is preserved
+
+        r = newRepo()
+
+        fs.writeFileSync path.join(r.dir, 'a.txt'), 'a\n'
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'fix: handle empty tree and  spaces'
+
+        io = sink()
+        withCwd(r.dir, -> log.log([], io, io.opts))
+
+        matches io.text(), /fix:\x20handle\x20empty\x20tree\x20and\x20{2}spaces$/
+
+        r.cleanup()

@@ -1,0 +1,452 @@
+###
+████████   ████████  ███   ███  ███████    ████████  ████████
+███   ███  ███       ████  ███  ███   ███  ███       ███   ███
+████████   ███████   ███ █ ███  ███   ███  ███████   ███████
+███   ███  ███       ███  ████  ███   ███  ███       ███   ███
+███   ███  ████████  ███   ███  ███████    ████████  ███   ███
+###
+
+#  unit tests for the pure renderers.
+#
+#  No git, no repository, no child processes: these assert layout and colour
+#  decisions directly.
+#
+#  A regex literal may not contain a space — the lexer reads it as a separator —
+#  so every space below is \x20. It is the same character and it survives.
+
+use ../git
+use ../render
+use ./style
+use ./helpers ▪ matches notMatches
+
+NUL = '\0'
+
+mixedTree = ->
+    branch: 'main'
+    ahead: 0
+    behind: 0
+    detached: false
+    staged: [{path: 'lib/add.mjs', code: 'A'}, {path: 'README.md', code: 'M'}]
+    unstaged: [{path: '../kit.md', code: 'M'}]
+    untracked: [{path: 'notes.tmp', code: '?'}]
+
+▸ parseStatusV2
+
+    ▸ headers, staged/unstaged split
+
+        raw = [
+            '# branch.oid abc123def456'
+            '# branch.head main'
+            '# branch.upstream origin/main'
+            '# branch.ab +2 -1'
+            '1 M. N... 100644 100644 100644 aaa bbb src/a.mjs'
+            '1 .M N... 100644 100644 100644 aaa ccc src/b.mjs'
+            '? build/'
+            ].join(NUL) + NUL
+
+        d = git.parseStatusV2 raw
+
+        d.branch ▸ 'main'
+        d.upstream ▸ 'origin/main'
+        d.ahead ▸ 2
+        d.behind ▸ 1
+        d.staged ▸ [{path: 'src/a.mjs', code: 'M'}]
+        d.unstaged ▸ [{path: 'src/b.mjs', code: 'M'}]
+        d.untracked ▸ [{path: 'build/', code: '?'}]
+
+    ▸ rename consumes the origin path record
+
+        raw = [
+            '2 RM N... 100644 100644 100644 aaa bbb R100 renamed.txt'
+            'a b.txt'
+            ].join(NUL) + NUL
+
+        d = git.parseStatusV2 raw
+
+        d.staged.length ▸ 1
+        d.staged[0].path ▸ 'renamed.txt'
+        d.staged[0].orig ▸ 'a b.txt'
+
+    ▸ filename with a space is one path
+
+        raw = ['1 A. N... 100644 100644 100644 a b my file.txt'].join(NUL) + NUL
+
+        d = git.parseStatusV2 raw
+
+        d.staged[0].path ▸ 'my file.txt'
+
+▸ renderStatus
+
+    ▸ clean tree renders nothing
+
+        d = branch: 'main', staged: [], unstaged: [], untracked: []
+
+        render.renderStatus(d, {theme: style.plainTheme}) ▸ ''
+
+    ▸ a clean tree in sync with its upstream renders nothing
+
+        d = branch: 'main', ahead: 0, behind: 0, staged: [], unstaged: [], untracked: []
+
+        render.renderStatus(d, {theme: style.plainTheme}) ▸ ''
+
+    ▸ a clean tree ahead of its upstream renders the header alone
+
+        d =
+            root: '/home/kodi/s/kit'
+            branch: 'main'
+            ahead: 2
+            behind: 0
+            staged: []
+            unstaged: []
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        style.plain(out).split('\n').length ▸ 1
+        matches out, style.headerOf('~/s/kit', '↑2')
+        style.headingLines(out).length ▸ 0
+
+    ▸ a clean tree behind its upstream renders the header alone
+
+        d =
+            root: '/home/kodi/s/kit'
+            branch: 'main'
+            ahead: 0
+            behind: 3
+            staged: []
+            unstaged: []
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        style.plain(out).split('\n').length ▸ 1
+        matches out, style.headerOf('~/s/kit', '↓3')
+
+    ▸ dirty tree has branch header and all three sections
+
+        d =
+            branch: 'branch'
+            ahead: 2
+            behind: 0
+            detached: false
+            staged: [{path: 'src/new.mjs', code: 'A'}]
+            unstaged: [{path: 'src/a.mjs', code: 'M'}]
+            untracked: [{path: 'build/'}]
+
+        out = render.renderStatus d, {theme: style.plainTheme}
+
+        matches out, /branch\x20↑2/
+        matches out, style.headingOf('staged')
+        matches out, style.headingOf('unstaged')
+        matches out, style.headingOf('untracked')
+        matches out, /A\x20src\/new\.mjs/
+        matches out, /M\x20src\/a\.mjs/
+        matches out, /\?\x20build\//
+
+    ▸ empty sections are omitted and the last group closes the list
+
+        d = branch: 'main', staged: [], unstaged: [{path: 'a', code: 'M'}], untracked: []
+
+        heads = style.headingLines render.renderStatus(d, {theme: style.plainTheme})
+
+        notMatches heads.join('\n'), style.headingOf('staged')
+        heads.length ▸ 1
+        matches heads[0], style.headingOf('unstaged')
+
+    ▸ the header names the repository root, then the branch
+
+        d =
+            root: '/home/kodi/s/kit'
+            branch: 'branch'
+            staged: []
+            unstaged: [{path: 'a', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        matches out, style.headerOf('~/s/kit', 'branch')
+
+    ▸ the root identifies the repository, not the directory kit ran in
+
+        d =
+            root: '/home/kodi/a'
+            branch: 'branch'
+            staged: []
+            unstaged: [{path: '../top.txt', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        matches out, style.headerOf('~/a', 'branch')
+
+    ▸ ahead and behind stay legible after the root
+
+        d =
+            root: '/home/kodi/s/kit'
+            branch: 'branch'
+            ahead: 2
+            behind: 1
+            staged: []
+            unstaged: [{path: 'a', code: 'M'}]
+            untracked: []
+
+        header = style.plain(render.renderStatus(d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme}))).split('\n')[0]
+
+        matches header, style.headerOf('~/s/kit', 'branch ↑2 ↓1')
+
+    ▸ a detached head keeps its short oid beside the root
+
+        d =
+            root: '/home/kodi/s/kit'
+            detached: true
+            oid: 'abcdef1234567890'
+            staged: []
+            unstaged: [{path: 'a', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        matches out, style.headerOf('~/s/kit', 'detached@abcdef1')
+
+    ▸ a root outside home is shown in full
+
+        d =
+            root: '/tmp/kit-test-1'
+            branch: 'branch'
+            staged: []
+            unstaged: [{path: 'a', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        matches out, style.headerOf('/tmp/kit-test-1', 'branch')
+
+    ▸ a root that merely starts with home is not shortened
+
+        d =
+            root: '/home/kodi-other'
+            branch: 'branch'
+            staged: []
+            unstaged: [{path: 'a', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        matches out, style.headerOf('/home/kodi-other', 'branch')
+
+    ▸ without a root the header is the branch alone
+
+        d = branch: 'branch', staged: [], unstaged: [{path: 'a', code: 'M'}], untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {home: '/home/kodi'}, {theme: style.plainTheme})
+
+        style.plain(out).split('\n')[0] ▸ 'branch'
+
+▸ outOfSync
+
+    ▸ only a branch with commits on one side counts
+
+        render.outOfSync({ahead: 0, behind: 0}) ▸ false
+        render.outOfSync({}) ▸ false
+        render.outOfSync() ▸ false
+        render.outOfSync({ahead: 1, behind: 0}) ▸ true
+        render.outOfSync({ahead: 0, behind: 1}) ▸ true
+
+▸ renderBranch
+
+    ▸ detached head shows short oid
+
+        out = render.renderBranch {detached: true, oid: 'abcdef1234567890'}, {theme: style.plainTheme}
+
+        matches out, /detached@abcdef1/
+
+▸ abbreviateHome
+
+    ▸ a path under home loses the prefix
+
+        render.abbreviateHome('/home/kodi/s/kit', '/home/kodi') ▸ '~/s/kit'
+        render.abbreviateHome('/home/kodi', '/home/kodi') ▸ '~'
+
+    ▸ everything else is left exactly as it is
+
+        render.abbreviateHome('/tmp/x', '/home/kodi') ▸ '/tmp/x'
+        render.abbreviateHome('/home/kodi-other', '/home/kodi') ▸ '/home/kodi-other'
+        render.abbreviateHome('~/s/kit', '/home/kodi') ▸ '~/s/kit'
+        render.abbreviateHome('/home/kodi/s/kit', '/home/kodi/') ▸ '~/s/kit'
+
+    ▸ with no home to compare against, the path stands
+
+        render.abbreviateHome('/home/kodi/s/kit', undefined) ▸ '/home/kodi/s/kit'
+        render.abbreviateHome('/home/kodi/s/kit', '') ▸ '/home/kodi/s/kit'
+
+▸ renderTracking
+
+    ▸ in-sync renders empty
+
+        render.renderTracking({ahead: 0, behind: 0}, {theme: style.plainTheme}) ▸ ''
+        matches render.renderTracking({ahead: 3, behind: 1}, {theme: style.plainTheme}), /↑3\x20↓1/
+
+▸ renderStatus committed view
+
+    ▸ renames the staged heading
+
+        out = render.renderStatus mixedTree(), {committed: true, theme: style.plainTheme}
+
+        matches out, style.headingOf('committed')
+        notMatches out, style.headingOf('staged')
+        matches out, style.headingOf('unstaged')
+        matches out, style.headingOf('untracked')
+
+    ▸ the default view still says staged
+
+        out = render.renderStatus mixedTree(), {theme: style.plainTheme}
+
+        matches out, style.headingOf('staged')
+        notMatches out, /committed/
+
+    ▸ lowercases letters in that section only
+
+        out = render.renderStatus mixedTree(), {committed: true, theme: style.plainTheme}
+
+        matches out, /a\x20lib\/add\.mjs/
+        matches out, /m\x20README\.md/
+        matches out, /M\x20\.\.\/kit\.md/
+
+    ▸ the deletion letter is lowercased in the committed view
+
+        d = branch: 'main', staged: [{path: 'old.sh', code: 'D'}], unstaged: [], untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {committed: true}, {theme: style.plainTheme})
+
+        matches out, /d\x20old\.sh/
+
+    ▸ keeps the untracked question mark
+
+        out = render.renderStatus mixedTree(), {committed: true, theme: style.plainTheme}
+
+        matches out, /\?\x20notes\.tmp/
+
+    ▸ a file in both committed and unstaged renders in both
+
+        d =
+            branch: 'main'
+            staged: [{path: 'a.mjs', code: 'M'}]
+            unstaged: [{path: 'a.mjs', code: 'M'}]
+            untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {committed: true}, {theme: style.plainTheme})
+
+        matches out, /m\x20a\.mjs/
+        matches out, /M\x20a\.mjs/
+        out.match(/a\.mjs/g).length ▸ 2
+
+    ▸ a clean tree still renders nothing
+
+        d = branch: 'main', staged: [], unstaged: [], untracked: []
+
+        out = render.renderStatus d, Object.assign({}, {committed: true}, {theme: style.plainTheme})
+
+        out ▸ ''
+
+    ▸ the heading column stays aligned across the groups
+
+        heads = style.headingLines render.renderStatus(mixedTree(), {committed: true, theme: style.plainTheme})
+
+        heads.length ▸ 3
+
+        widths = new Set
+        for l in heads
+            widths.add render.displayWidth(style.plain(l))
+
+        widths.size ▸ 1
+
+    ▸ every group carries a marker, and all of one width
+
+        heads = style.headingLines render.renderStatus(mixedTree(), {theme: style.plainTheme})
+
+        heads.length ▸ 3
+
+        offsets = new Set
+        for l in heads
+            word = l.trim().split(/\s+/).pop()
+            offsets.add render.displayWidth(style.plain(l).trimEnd()) - render.displayWidth(word)
+
+        offsets.size ▸ 1
+        Array.from(offsets)[0] >= 2 ▸ yes
+
+    ▸ entries sit under their heading, whatever the marker is
+
+        out = render.renderStatus mixedTree(), {theme: style.plainTheme}
+        head = style.headingLines(out)[0]
+        word = head.trim().split(/\s+/).pop()
+        wordColumn = render.displayWidth(style.plain(head).trimEnd()) - render.displayWidth(word)
+        indent = ' '.repeat wordColumn
+
+        entries = style.plain(out).split('\n').filter (l) -> (/^\s+\S/).test l
+
+        entries.length ▸ 4
+
+        for line in entries
+            line.startsWith(indent) ▸ yes
+
+▸ renderCommitSuccess
+
+    ▸ keeps branch, hash, subject and stat; drops noise
+
+        stdout = [
+            '[master e3cd348] fourth'
+            ' Author: someone <s@e.st>'
+            ' 1 file changed, 1 insertion(+)'
+            ' create mode 100644 new.txt'
+            ' delete mode 100644 old.txt'
+            ].join('\n')
+
+        out = render.renderCommitSuccess stdout, {theme: style.plainTheme}
+
+        matches out, /\[master\x20e3cd348\]\x20fourth/
+        matches out, /1\x20file\x20changed,\x201\x20insertion/
+        notMatches out, /Author:/
+        notMatches out, /create\x20mode|delete\x20mode/
+
+    ▸ no trailing blank lines
+
+        out = render.renderCommitSuccess('[main abc1234] msg\n 1 file changed\n\n\n', {theme: style.plainTheme})
+
+        out.split('\n').length ▸ 2
+
+▸ renderCommitFailure
+
+    ▸ extracts only the concluding line, drops hint
+
+        stdout = [
+            'On branch master'
+            'Untracked files:'
+            '  (use "git add <file>..." to include in what will be committed)'
+            '\tnew.txt'
+            ''
+            'nothing added to commit but untracked files present (use "git add" to track)'
+            ].join('\n')
+
+        out = render.renderCommitFailure stdout, {theme: style.plainTheme}
+
+        out ▸ 'nothing added to commit but untracked files present'
+        notMatches out, /On\x20branch/
+        notMatches out, /new\.txt/
+
+    ▸ clean tree renders nothing
+
+        out = render.renderCommitFailure 'On branch master\nnothing to commit, working tree clean', {theme: style.plainTheme}
+
+        out ▸ ''
+
+    ▸ unknown output is passed through, not swallowed
+
+        out = render.renderCommitFailure 'something unexpected happened', {theme: style.plainTheme}
+
+        out ▸ 'something unexpected happened'
+
+    ▸ handles a message with no trailing hint
+
+        out = render.renderCommitFailure 'On branch master\nnothing added to commit but untracked files present'
+
+        out ▸ 'nothing added to commit but untracked files present'

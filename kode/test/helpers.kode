@@ -1,0 +1,30 @@
+#  the assertions the tester cannot spell on its own. everything else is a
+#  compare:  lhs ▸ rhs
+#
+#  matches / notMatches: a pass counts, a failure shows the pattern against
+#  the text it did not find (or did find) in.  the tester compares values, and
+#  a regexp against a string is not a value comparison - the tester would
+#  call the regexp as a predicate and never look at the text.
+
+matches = (text, pattern) ->
+
+    #  a global pattern keeps its place between calls, so it is put back to
+    #  the start before every test
+
+    pattern.lastIndex = 0
+
+    if pattern.test text
+        ⮐ compare pattern, pattern
+    compare pattern, text
+
+notMatches = (text, pattern) ->
+
+    pattern.lastIndex = 0
+
+    if pattern.test text
+        ⮐ compare 'no ' + pattern, text
+    compare pattern, pattern
+
+export
+    matches: matches
+    notMatches: notMatches

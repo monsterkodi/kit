@@ -1,0 +1,71 @@
+###
+████████   ████████  ███       ███████   █████████  ███  ███   ███  ███   ███████  ████████
+███   ███  ███       ███      ███   ███     ███     ███  ███   ███  ███  ███       ███
+████████   ███████   ███      █████████     ███     ███   ███ ███   ███  ███████   ███████
+███   ███  ███       ███      ███   ███     ███     ███     ███     ███       ███  ███
+███   ███  ████████  ███████  ███   ███     ███     ███      █      ███  ███████   ████████
+###
+
+#  tests cwd-relative path handling.
+#
+#  `git status --porcelain=v2 -z` reports paths relative to the repository
+#  root regardless of cwd, so kit rewrites them to match what git's own
+#  non-porcelain output would show. These tests pin that behaviour.
+
+use ../git
+
+NUL = '\0'
+
+▸ relativeTo
+
+    ▸ paths inside the prefix lose it
+
+        git.relativeTo('lib/b.mjs', 'lib/') ▸ 'b.mjs'
+        git.relativeTo('lib/deep/x.txt', 'lib/') ▸ 'deep/x.txt'
+        git.relativeTo('lib/deep/x.txt', 'lib/deep/') ▸ 'x.txt'
+
+    ▸ siblings gain one ../ per level climbed
+
+        git.relativeTo('test/c.mjs', 'lib/') ▸ '../test/c.mjs'
+        git.relativeTo('top.txt', 'lib/') ▸ '../top.txt'
+        git.relativeTo('lib/b.mjs', 'test/') ▸ '../lib/b.mjs'
+        git.relativeTo('x.txt', 'deep/a/') ▸ '../../x.txt'
+        git.relativeTo('a/b/c/d.txt', 'a/b/c/') ▸ 'd.txt'
+
+    ▸ an empty prefix (the repository root) is a no-op
+
+        git.relativeTo('top.txt', '') ▸ 'top.txt'
+        git.relativeTo('lib/b.mjs', '') ▸ 'lib/b.mjs'
+
+▸ relativise
+
+    ▸ rewrites all three groups
+
+        raw = [
+            '1 M. N... 100644 100644 100644 a b lib/b.mjs'
+            '1 .M N... 100644 100644 100644 a c test/c.mjs'
+            '? lib/new.txt'
+            ].join(NUL) + NUL
+
+        data = git.parseStatusV2 raw
+        out  = git.relativise data, 'lib/'
+
+        out.staged[0].path ▸ 'b.mjs'
+        out.unstaged[0].path ▸ '../test/c.mjs'
+        out.untracked[0].path ▸ 'new.txt'
+
+    ▸ the rename origin is dropped, since the new path is relative
+
+        raw = ['2 RM N... 100644 100644 100644 a b R100 lib/new.txt', 'lib/old.txt'].join(NUL) + NUL
+        data = git.parseStatusV2 raw
+        out  = git.relativise data, 'lib/'
+
+        out.staged[0].path ▸ 'new.txt'
+        out.staged[0].orig ▸ undefined
+
+    ▸ a no-op at the repository root
+
+        raw = ['1 M. N... 100644 100644 100644 a b lib/b.mjs'].join(NUL) + NUL
+        out = git.relativise(git.parseStatusV2(raw), '')
+
+        out.staged[0].path ▸ 'lib/b.mjs'
