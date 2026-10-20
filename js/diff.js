@@ -9,7 +9,7 @@ KODE_FILES = '*.kode'
 
 parseArgs = function (args, isCommit = null)
 {
-    var arg, paths, target, targets
+    var arg, n, paths, target, targets
 
     targets = []
     paths = []
@@ -19,7 +19,12 @@ parseArgs = function (args, isCommit = null)
         arg = list[_a_]
         if ((/^-\d+$/).test(arg))
         {
-            targets.push(arg)
+            n = Number(arg.slice(1))
+            if (n < 1)
+            {
+                return {ok:false,message:`kit diff: '${arg}' is not a commit count (it starts at 1)`}
+            }
+            targets.push({number:n})
             continue
         }
         if (arg.startsWith('-'))
@@ -38,7 +43,7 @@ parseArgs = function (args, isCommit = null)
         }
         if (isCommit && isCommit(arg))
         {
-            targets.push(arg)
+            targets.push({rev:arg})
             continue
         }
         paths.push(arg)
@@ -65,7 +70,7 @@ gitCommands = function (target, paths)
 
 diff = function (args = [], io = console, opt = {})
 {
-    var cmd, code, parsed
+    var cmd, code, parsed, rev, _117_31_
 
     if (!git.inRepo())
     {
@@ -78,7 +83,24 @@ diff = function (args = [], io = console, opt = {})
         io.error(parsed.message)
         return 1
     }
-    var list = _k_.list(gitCommands(parsed.target,parsed.paths))
+    rev = null
+    if (parsed.target)
+    {
+        if ((parsed.target.number != null))
+        {
+            rev = git.commitAt(parsed.target.number)
+            if (!rev)
+            {
+                io.error(`kit diff: '-${parsed.target.number}' is not a commit count (the history is shorter)`)
+                return 128
+            }
+        }
+        else
+        {
+            rev = parsed.target.rev
+        }
+    }
+    var list = _k_.list(gitCommands(rev,parsed.paths))
     for (var _b_ = 0; _b_ < list.length; _b_++)
     {
         cmd = list[_b_]
@@ -98,5 +120,5 @@ export default {
     diff:diff
 }
 
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGlmZi5qcyIsInNvdXJjZXMiOlsiLi4va29kZS9kaWZmLmtvZGUiXSwibWFwcGluZ3MiOiI7Ozs7OztBQXdCQSxZQUFZO0FBQ1osYUFBYTs7QUFhYjs7OztJQUVJO0lBQ0E7d0JBRVc7Ozs7YUFLSCxVQUFVLEtBQUs7O1lBQ2YsUUFBUSxLQUFLO1lBQ2I7O1lBRUQsSUFBSSxXQUFXOztvQkFBYSxHQUFJLE1BQU8sc0JBQXVCOztZQUk5RCxRQUFPOztZQUNOLE1BQU0sS0FBSztZQUNYOztZQUVELFFBQU87O1lBQ04sTUFBTSxLQUFLO1lBQ1g7O1lBS0QsWUFBYSxTQUFTOztZQUNyQixRQUFRLEtBQUs7WUFDYjs7UUFFSixNQUFNLEtBQUs7O1FBRVosUUFBUSxTQUFTOztnQkFBVSxHQUFJLE1BQU8sc0RBQXVELFFBQVE7O0lBRXhHLFNBQVksUUFBUSxTQUFTLGNBQWEsV0FBYTtZQUV0RCxHQUFJLEtBQU0sT0FBUSxPQUFRLE1BQU87OztBQVF0Qzs7OztJQUVJLFFBQVcsTUFBTSxTQUFTLEtBQVEsTUFBTSxPQUFPO1FBRTVDOztpQkFBZ0IsT0FBUSxRQUFRLE9BQU87O2FBRXhDLE9BQVEsWUFBWSxPQUFPLFFBQVMsUUFBUSxPQUFPOzs7QUFFekQ7Ozs7U0FFVyxJQUFJOztRQUNQLEdBQUcsTUFBTTtlQUNGOztJQUVYLFNBQVMsVUFBVSxLQUFNLElBQUk7U0FFdEIsT0FBTzs7UUFDVixHQUFHLE1BQU0sT0FBTztlQUNUOzt3QkFFQSxZQUFZLE9BQU8sT0FBUSxPQUFPOzs7O1FBQ3pDLE9BQU8sSUFBSSxZQUFZO1lBQ3BCLFNBQVE7O21CQUFjOzs7V0FFN0I7OztJQUdBLFVBQVc7SUFDWCxXQUFZO0lBQ1osVUFBVztJQUNYLFlBQWE7SUFDYixLQUFNIn0=
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGlmZi5qcyIsInNvdXJjZXMiOlsiLi4va29kZS9kaWZmLmtvZGUiXSwibWFwcGluZ3MiOiI7Ozs7OztBQXdCQSxZQUFZO0FBQ1osYUFBYTs7QUFhYjs7OztJQUVJO0lBQ0E7d0JBRVc7Ozs7YUFPSCxVQUFVLEtBQUs7O1lBRWYsSUFBSSxPQUFPLElBQUksTUFBTTtnQkFFbEIsSUFBSTs7d0JBQVUsR0FBSSxNQUFPLHNCQUF1Qjs7WUFFbkQsUUFBUSxNQUFNLE9BQVE7WUFDdEI7O1lBRUQsSUFBSSxXQUFXOztvQkFBYSxHQUFJLE1BQU8sc0JBQXVCOztZQUk5RCxRQUFPOztZQUNOLE1BQU0sS0FBSztZQUNYOztZQUVELFFBQU87O1lBQ04sTUFBTSxLQUFLO1lBQ1g7O1lBS0QsWUFBYSxTQUFTOztZQUNyQixRQUFRLE1BQU0sSUFBSztZQUNuQjs7UUFFSixNQUFNLEtBQUs7O1FBRVosUUFBUSxTQUFTOztnQkFBVSxHQUFJLE1BQU8sc0RBQXVELFFBQVE7O0lBRXhHLFNBQVksUUFBUSxTQUFTLGNBQWEsV0FBYTtZQUV0RCxHQUFJLEtBQU0sT0FBUSxPQUFRLE1BQU87OztBQVF0Qzs7OztJQUVJLFFBQVcsTUFBTSxTQUFTLEtBQVEsTUFBTSxPQUFPO1FBRTVDOztpQkFBZ0IsT0FBUSxRQUFRLE9BQU87O2FBRXhDLE9BQVEsWUFBWSxPQUFPLFFBQVMsUUFBUSxPQUFPOzs7QUFFekQ7Ozs7U0FFVyxJQUFJOztRQUNQLEdBQUcsTUFBTTtlQUNGOztJQUVYLFNBQVMsVUFBVSxLQUFNLElBQUk7U0FFdEIsT0FBTzs7UUFDVixHQUFHLE1BQU0sT0FBTztlQUNUOztJQUVYLE1BQU07UUFFSCxPQUFPOzthQUVILE9BQU8sT0FBTzs7WUFLYixNQUFNLElBQUksU0FBUyxPQUFPLE9BQU87aUJBRTFCOztnQkFDSCxHQUFHLHFCQUFxQixPQUFPLE9BQU87dUJBQy9COzs7OztZQUdYLE1BQU0sT0FBTyxPQUFPOzs7d0JBRWpCLFlBQVksSUFBSyxPQUFPOzs7O1FBQy9CLE9BQU8sSUFBSSxZQUFZO1lBQ3BCLFNBQVE7O21CQUFjOzs7V0FFN0I7OztJQUdBLFVBQVc7SUFDWCxXQUFZO0lBQ1osVUFBVztJQUNYLFlBQWE7SUFDYixLQUFNIn0=
 //# sourceURL=file:///home/kodi/s/kit/kode/diff.kode

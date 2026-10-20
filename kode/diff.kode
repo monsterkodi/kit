@@ -43,11 +43,18 @@ parseArgs = (args, isCommit=null) ->
 
     for arg in args
 
-        #  A negative number is a commit: -1 is the last one and -2 the one
-        #  before it, the way git counts them.
+        #  A negative number counts back from HEAD. The count is kept as a
+        #  count: git's own -13 would name the range from that commit to HEAD
+        #  instead of the commit itself, so the commit is looked up by its
+        #  hash before it is shown.
 
         if (/^-\d+$/).test arg
-            targets.push arg
+
+            n = Number(arg.slice(1))
+
+            if n < 1 then ⮐ {ok: false, message: "kit diff: '#{arg}' is not a commit count (it starts at 1)"}
+
+            targets.push {number: n}
             continue
 
         if arg.startsWith('-') then ⮐ {ok: false, message: "kit diff: '#{arg}' is not a commit number"}
@@ -66,7 +73,7 @@ parseArgs = (args, isCommit=null) ->
         #  does not is a path the diff is limited to.
 
         if isCommit and isCommit(arg)
-            targets.push arg
+            targets.push {rev: arg}
             continue
 
         paths.push arg
@@ -103,7 +110,25 @@ diff = (args=[], io=console, opt={}) ->
         io.error parsed.message
         return 1
 
-    for cmd in gitCommands(parsed.target, parsed.paths)
+    rev = null
+
+    if parsed.target
+
+        if parsed.target.number?
+
+            #  A number counts back from HEAD, and the commit it names is
+            #  shown by its hash: one commit, not the range before it.
+
+            rev = git.commitAt(parsed.target.number)
+
+            if not rev
+                io.error "kit diff: '-#{parsed.target.number}' is not a commit count (the history is shorter)"
+                return 128
+
+        else
+            rev = parsed.target.rev
+
+    for cmd in gitCommands(rev, parsed.paths)
         code = git.runAttached(cmd)
         if code != 0 then return code
 

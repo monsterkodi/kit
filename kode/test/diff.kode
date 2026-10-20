@@ -33,19 +33,30 @@ mainOnly = (token) -> token == 'main'
         r = diff.parseArgs ['-1'], never
 
         r.ok ▸ yes
-        r.target ▸ '-1'
+        r.target.number ▸ 1
         r.paths ▸ []
+
+        r = diff.parseArgs ['-13'], never
+
+        r.target.number ▸ 13
+
+    ▸ zero is not a commit count
+
+        r = diff.parseArgs ['-0'], never
+
+        r.ok ▸ no
+        matches r.message, /not\x20a\x20commit\x20count/
 
     ▸ a ref or a hash is a commit
 
         r = diff.parseArgs ['abc1234'], always
 
         r.ok ▸ yes
-        r.target ▸ 'abc1234'
+        r.target.rev ▸ 'abc1234'
 
         r = diff.parseArgs ['main'], always
 
-        r.target ▸ 'main'
+        r.target.rev ▸ 'main'
 
     ▸ a token that is no commit is a path
 
@@ -72,12 +83,12 @@ mainOnly = (token) -> token == 'main'
         r = diff.parseArgs ['-1', 'kode'], never
 
         r.ok ▸ yes
-        r.target ▸ '-1'
+        r.target.number ▸ 1
         r.paths ▸ ['kode']
 
         r = diff.parseArgs ['main', 'kode/render.kode'], mainOnly
 
-        r.target ▸ 'main'
+        r.target.rev ▸ 'main'
         r.paths ▸ ['kode/render.kode']
 
     ▸ two commits are an error
@@ -111,7 +122,7 @@ mainOnly = (token) -> token == 'main'
 
     ▸ a commit is shown with git show
 
-        diff.gitCommands('-1', []) ▸ [['show', '-1']]
+        diff.gitCommands('abc1234', []) ▸ [['show', 'abc1234']]
 
     ▸ a commit with paths shows those paths alone
 

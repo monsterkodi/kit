@@ -1189,10 +1189,49 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
         r.git 'commit', '-qm', 'second'
 
         plan = diff.parseArgs ['-1'], -> false
-        out = withCwd(r.dir, -> diff.gitCommands(plan.target, plan.paths).map((c) -> git.capture c).join('\n'))
+        out = withCwd(r.dir, -> diff.gitCommands(git.commitAt(plan.target.number), plan.paths).map((c) -> git.capture c).join('\n'))
 
         matches out, /a\.txt/
         matches out, /changed/
+
+        r.cleanup()
+
+    ▸ a negative number shows that one commit, not the range before it
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'first'
+        fs.writeFileSync(path.join(r.dir, 'b.txt'), 'b\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'second'
+        fs.writeFileSync(path.join(r.dir, 'c.txt'), 'c\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'third'
+
+        plan = diff.parseArgs ['-3'], -> false
+        out = withCwd(r.dir, -> diff.gitCommands(git.commitAt(plan.target.number), plan.paths).map((c) -> git.capture c).join('\n'))
+
+        matches out, /a\.txt/
+        not out.includes('b.txt') ▸ yes
+        not out.includes('c.txt') ▸ yes
+
+        r.cleanup()
+
+    ▸ a number that counts too far back is an error
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+
+        io = sink()
+        code = withCwd(r.dir, -> diff.diff(['-5'], io, io.opts))
+
+        code ▸ 128
+        matches io.err.join('\n'), /not\x20a\x20commit\x20count/
 
         r.cleanup()
 

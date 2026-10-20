@@ -70,6 +70,17 @@ isCommit = (token) ->
 
     r.ok
 
+#  The hash of the commit that is n commits back from HEAD: n = 1 is the last
+#  commit, n = 2 the one before it. Empty when the history is not that long.
+
+commitAt = (n) ->
+
+    rev = if n == 1 then 'HEAD' else "HEAD~#{n - 1}"
+
+    r = run(['rev-parse', '--verify', '--quiet', "#{rev}^{commit}"])
+
+    if r.ok then r.stdout.trim() else ''
+
 at = (dir) -> if dir then {cwd: dir} else {}
 
 repoProblem = (dir) ->
@@ -327,6 +338,7 @@ export
     capture: capture
     runAttached: runAttached
     isCommit: isCommit
+    commitAt: commitAt
     repoProblem: repoProblem
     inRepo: inRepo
     parseStatusV2: parseStatusV2
