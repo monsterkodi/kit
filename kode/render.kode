@@ -289,11 +289,18 @@ renderLog = (commits, opt={}) ->
 
     dates = if long then commits.map((c) -> String(c.date ? '')) else collapseDates(commits)
 
+    #  git abbreviates hashes to as many characters as the repository needs,
+    #  7 in a small one, 8 or more in a big one. The column is as wide as the
+    #  widest hash, and the message starts behind it.
+
+    hashWidth = Math.max.apply null, commits.map((c) -> displayWidth(c.hash ? ''))
+    hashWidth = Math.max hashWidth, HASH_WIDTH
+
     out = []
 
     commits.forEach (c, i) ->
 
-        block = renderCommit(c, width, long, t, dates[i])
+        block = renderCommit(c, width, long, t, dates[i], hashWidth)
 
         for l in block.lines
             out.push l
@@ -306,7 +313,8 @@ renderLog = (commits, opt={}) ->
 
     out.join('\n')
 
-PREFIX_WIDTH      = 7 + 1 + 12 + 1 + NAME_WIDTH + 1
+HASH_WIDTH        = 7
+PREFIX_WIDTH      = HASH_WIDTH + 1 + 12 + 1 + NAME_WIDTH + 1
 NARROW_WIDTH      = 60
 MIN_MESSAGE_WIDTH = 40
 DEFAULT_WIDTH     = 80
@@ -414,9 +422,11 @@ paintBody = (lines, indent, t) ->
 #
 #  The files of the commit are below the message, when they are asked for.
 
-renderCommit = (c, width, long, t, date=c.date ? '') ->
+renderCommit = (c, width, long, t, date=c.date ? '', hashWidth=HASH_WIDTH) ->
 
-    hash = t.logHash(c.hash ? '')
+    prefixWidth = PREFIX_WIDTH + hashWidth - HASH_WIDTH
+
+    hash = t.logHash(String(c.hash ? '').padEnd(hashWidth))
     stamp = t.logDate(date)
     name = t.logName(fitName(c.name))
 
@@ -451,9 +461,9 @@ renderCommit = (c, width, long, t, date=c.date ? '') ->
 
     else
 
-        budget = Math.max(width - PREFIX_WIDTH, 1)
+        budget = Math.max(width - prefixWidth, 1)
         text = if long then body else firstLine(c)
-        indent = ' '.repeat PREFIX_WIDTH
+        indent = ' '.repeat prefixWidth
 
         if long
 

@@ -42,6 +42,21 @@ widest = (s) -> Math.max.apply null, widths(s)
 
         render.displayWidth(line) ▸ render.PREFIX_WIDTH + 1
 
+    ▸ a longer hash widens the prefix, and the message still ends at the width
+
+        long  = commit({hash: 'f9c98c7a'})
+        short = commit({hash: 'a1b2c3d'})
+
+        out = plain render.renderLog([long, short], {width: 100})
+        widths(out) ▸ [100 100]
+        matches out.split('\n')[1], /^a1b2c3d\x20\x20/
+
+        out = plain render.renderLog([commit({hash: 'f9c98c7a', body: LONG_SUBJECT + ' ' + LONG_SUBJECT})], {width: 100, long: true})
+        lines = out.split('\n')
+        lines[1].startsWith(' '.repeat(render.PREFIX_WIDTH + 1)) ▸ yes
+        lines[1][render.PREFIX_WIDTH + 1] != ' ' ▸ yes
+        widest(out) <= 100 ▸ yes
+
     ▸ a short subject is left untouched
 
         out = plain render.renderLog([commit({subject: 'short one'})], {width: 100})
