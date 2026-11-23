@@ -157,3 +157,13 @@ mainOnly = (token) -> token == 'main'
     ▸ a commit with paths shows those paths alone
 
         diff.gitCommands('abc1234', ['*.kode']) ▸ [['show', 'abc1234', '--', '*.kode']]
+
+▸ changeCommands
+
+    ▸ the working tree lists the staged and the unstaged files
+
+        diff.changeCommands(null, ['kode']) ▸ [['diff', '--staged', '--name-only', '--', 'kode'], ['diff', '--name-only', '--', 'kode']]
+
+    ▸ a commit lists its files without the header
+
+        diff.changeCommands('abc1234', ['*.kode']) ▸ [['show', '--format=', '--name-only', 'abc1234', '--', '*.kode']]

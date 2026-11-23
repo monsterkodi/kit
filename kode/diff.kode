@@ -19,6 +19,7 @@
 #  user's own setup show it. kit only decides what to ask git for.
 
 use ./git
+use ./render
 
 #  The pathspec of a file type.
 #
@@ -96,6 +97,26 @@ gitCommands = (target, paths) ->
 
     [['diff', '--staged'].concat(limit), ['diff'].concat(limit)]
 
+#  The git commands that list the files the diff would show. A filter that
+#  lists none of them matched nothing, and kit says so instead of showing an
+#  empty diff (or, for a commit, a header without one).
+
+changeCommands = (target, paths) ->
+
+    limit = ['--'].concat(paths)
+
+    if target then ⮐ [['show', '--format=', '--name-only', target].concat(limit)]
+
+    [['diff', '--staged', '--name-only'].concat(limit), ['diff', '--name-only'].concat(limit)]
+
+matchesNothing = (target, paths) ->
+
+    for cmd in changeCommands(target, paths)
+        r = git.run(cmd)
+        if not r.ok or r.stdout.trim() then ⮐ false
+
+    true
+
 diff = (args=[], io=console, opt={}) ->
 
     if not git.inRepo()
@@ -126,6 +147,10 @@ diff = (args=[], io=console, opt={}) ->
         else
             rev = parsed.target.rev
 
+    if parsed.paths.length > 0 and matchesNothing(rev, parsed.paths)
+        io.log render.renderNoChanges(parsed.paths, opt)
+        return 0
+
     for cmd in gitCommands(rev, parsed.paths)
         code = git.runAttached(cmd)
         if code != 0 then return code
@@ -136,4 +161,5 @@ export
     typePathspec: typePathspec
     parseArgs: parseArgs
     gitCommands: gitCommands
+    changeCommands: changeCommands
     diff: diff

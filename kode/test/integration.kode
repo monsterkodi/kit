@@ -1342,3 +1342,39 @@ THIRD = localDate 'Jun', '2020-06-07T08:30:00Z', '30'
         not out.includes('b.txt') ▸ yes
 
         r.cleanup()
+
+    ▸ a filter that matches nothing in a commit says so
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.kode'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'first'
+        fs.writeFileSync(path.join(r.dir, 'a.js'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'second'
+
+        io = sink()
+        code = withCwd(r.dir, -> diff.diff(['.kode', '-1'], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ 'no *.kode changes'
+
+        r.cleanup()
+
+    ▸ a filter that matches nothing in the working tree says so
+
+        r = newRepo()
+
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'a\n')
+        r.git 'add', '-A'
+        r.git 'commit', '-qm', 'init'
+        fs.writeFileSync(path.join(r.dir, 'a.txt'), 'changed\n')
+
+        io = sink()
+        code = withCwd(r.dir, -> diff.diff(['.kode'], io, io.opts))
+
+        code ▸ 0
+        io.text() ▸ 'no *.kode changes'
+
+        r.cleanup()

@@ -38,7 +38,7 @@ withNoColor = (value, fn) ->
 names = [
     'add' 'del' 'mod' 'untracked' 'branch' 'repoPath' 'dim' 'bold'
     'headStaged' 'headCommitted' 'headUnstaged' 'headUntracked' 'ahead' 'behind'
-    'logHash' 'logDate' 'logName' 'logBody'
+    'logHash' 'logDate' 'logName' 'logBody' 'noneText' 'noneName'
     ]
 
 tree = ->

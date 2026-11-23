@@ -208,6 +208,34 @@ renderCommitFailure = (stdout, opt={}) ->
 
     clean.trim()
 
+#  The line kit diff shows when its filter matched nothing: `no *.kode changes`.
+#  The name stands out a little: of a file type that is the extension, of any
+#  other path the path as a whole.
+
+renderNoChanges = (paths, opt={}) ->
+
+    t = opt.theme ? defaultTheme
+
+    #  segments of [text, isName]; neighbouring plain text is one segment
+
+    segs = []
+    push = (s, isName) ->
+        prev = segs[segs.length - 1]
+        if prev and not isName and not prev[1] then prev[0] += s
+        else segs.push [s, isName]
+
+    push 'no ', false
+    for p, i in paths
+        if i > 0 then push ' ', false
+        if p.startsWith('*.')
+            push '*.', false
+            push p.slice(2), true
+        else
+            push p, true
+    push ' changes', false
+
+    segs.map(([s, isName]) -> if isName ➜ t.noneName(s) else t.noneText(s)).join('')
+
 NAME_WIDTH = 8
 
 fitName = (name, width=NAME_WIDTH) ->
@@ -473,6 +501,7 @@ export
     renderStatus: renderStatus
     renderCommitSuccess: renderCommitSuccess
     renderCommitFailure: renderCommitFailure
+    renderNoChanges: renderNoChanges
     fitName: fitName
     truncate: truncate
     wrap: wrap

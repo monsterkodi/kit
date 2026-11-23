@@ -16,6 +16,7 @@
 
 use ../git
 use ../render
+use ../theme
 use ./style
 use ./helpers ▪ matches notMatches
 
@@ -450,3 +451,27 @@ mixedTree = ->
         out = render.renderCommitFailure 'On branch master\nnothing added to commit but untracked files present'
 
         out ▸ 'nothing added to commit but untracked files present'
+
+▸ renderNoChanges
+
+    ▸ names the filter that matched nothing
+
+        render.renderNoChanges(['*.kode'], {theme: style.plainTheme}) ▸ 'no *.kode changes'
+
+    ▸ names every path of the filter
+
+        render.renderNoChanges(['*.kode', 'js'], {theme: style.plainTheme}) ▸ 'no *.kode js changes'
+
+    ▸ the name of a file type is brighter than the rest
+
+        t = theme.createTheme true
+        out = render.renderNoChanges ['*.kode'], {theme: t}
+
+        out ▸ t.noneText('no *.') + t.noneName('kode') + t.noneText(' changes')
+
+    ▸ a path is the name as a whole
+
+        t = theme.createTheme true
+        out = render.renderNoChanges ['js/diff.js'], {theme: t}
+
+        out ▸ t.noneText('no ') + t.noneName('js/diff.js') + t.noneText(' changes')
